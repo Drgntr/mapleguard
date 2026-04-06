@@ -13,7 +13,7 @@ import httpx
 import json
 import time
 from datetime import datetime
-from typing import Optional, Set
+from typing import Dict, Optional, Set
 
 try:
     from sqlalchemy import select, func, distinct
@@ -298,68 +298,159 @@ async def run_mint_watcher(nft_type: str, poll_interval: int = 10):
 
 # ── 3. Token metadata & Navigator enrichment ───────────────────────────────
 
-async def _token_uri_metadata(token_id: str) -> Optional[str]:
-    """Fetch character name from on-chain tokenURI."""
-    try:
-        tid_num = int(token_id.strip())
-        tid_hex = hex(tid_num)[2:].zfill(64)
+async def _token_uri_metadata(token_id: str, retries: int = 3) -> Optional[str]:
+    """Fetch character name from on-chain tokenURI with retries."""
+    max_retries = retries
+    backoffs = [2, 5, 15]
+    for attempt in range(max_retries):
+        try:
+            tid_num = int(token_id.strip())
+            tid_hex = hex(tid_num)[2:].zfill(64)
 
-        from config import get_settings
-        settings = get_settings()
+            from config import get_settings
+            settings = get_settings()
 
-        payload = {
-            "jsonrpc": "2.0",
-            "method": "eth_call",
-            "params": [{
-                "to": settings.CHARACTER_NFT,
-                "data": "0xc87b56dd" + tid_hex,
-            }, "latest"],
-            "id": 1,
-        }
+            payload = {
+                "jsonrpc": "2.0",
+                "method": "eth_call",
+                "params": [{
+                    "to": settings.CHARACTER_NFT,
+                    "data": "0xc87b56dd" + tid_hex,
+                }, "latest"],
+                "id": 1,
+            }
 
-        async with httpx.AsyncClient(timeout=15.0) as rpc_client:
-            resp = await rpc_client.post(settings.RPC_URL, json=payload)
-            result = resp.json().get("result", "")
+            async with httpx.AsyncClient(timeout=15.0) as rpc_client:
+                resp = await rpc_client.post(settings.RPC_URL, json=payload)
+                result = resp.json().get("result", "")
 
-        if not result or result == "0x":
+            if not result or result == "0x":
+                print(f"  [Metadata EMPTY] {token_id} (attempt {attempt+1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoffs[attempt])
+                    continue
+                return None
+
+            data = result[2:]
+            offset_bytes = int(data[:64], 16)
+            str_start_hex = 64 + offset_bytes * 2
+            raw_bytes = bytes.fromhex(data[str_start_hex:])
+            null_idx = raw_bytes.index(b"\x00") if b"\x00" in raw_bytes else len(raw_bytes)
+            uri = raw_bytes[:null_idx].decode("utf-8").strip()
+
+            if uri.startswith("ipfs://"):
+                uri = f"https://ipfs.io/ipfs/{uri[7:]}"
+            elif not uri.startswith(("http://", "https://")):
+                print(f"  [Metadata SKIP] {token_id}: {uri[:140]} (attempt {attempt+1}/{max_retries})")
+                return None  # bad URI scheme — won't help to retry
+
+            try:
+                async with httpx.AsyncClient(timeout=15.0) as meta_client:
+                    resp2 = await meta_client.get(uri, headers={"accept": "application/json"})
+                    resp2.raise_for_status()
+                    return resp2.json().get("name", "")
+            except Exception as e:
+                print(f"  [Metadata IPFS ERR] {token_id}: {e} (attempt {attempt+1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoffs[attempt])
+                    continue
+                return None
+        except Exception as e:
+            print(f"  [Metadata ERR] {token_id}: {e} (attempt {attempt+1}/{max_retries})")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoffs[attempt])
+                continue
             return None
+    return None
 
-        data = result[2:]
-        offset_bytes = int(data[:64], 16)
-        str_start_hex = 64 + offset_bytes * 2
-        raw_bytes = bytes.fromhex(data[str_start_hex:])
-        null_idx = raw_bytes.index(b"\x00") if b"\x00" in raw_bytes else len(raw_bytes)
-        uri = raw_bytes[:null_idx].decode("utf-8").strip()
 
-        if uri.startswith("ipfs://"):
-            uri = f"https://ipfs.io/ipfs/{uri[7:]}"
-        elif not uri.startswith(("http://", "https://")):
-            print(f"  [Metadata SKIP] {token_id}: {uri[:140]}")
+async def _search_asset_key(char_name: str, nav_client: httpx.AsyncClient, retries: int = 3) -> Optional[dict]:
+    """Search Navigator by name to find assetKey, using flexible matching."""
+    max_retries = retries
+    backoffs = [2, 5, 15]
+
+    for attempt in range(max_retries):
+        try:
+            url = f"https://msu.io/navigator/api/navigator/search?keyword={char_name}&limit=20"
+            resp = await nav_client.get(url)
+
+            if resp.status_code == 429:
+                wait = backoffs[min(attempt, len(backoffs) - 1)]
+                print(f"  [Search RATE] 429 for '{char_name}', waiting {wait}s")
+                await asyncio.sleep(wait)
+                continue
+            if resp.status_code != 200:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoffs[attempt])
+                    continue
+                return None
+
+            records = resp.json().get("records", [])
+            if not records:
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(backoffs[attempt])
+                    continue
+                return None
+
+            # Strategy 1: exact match
+            for rec in records:
+                if rec.get("type") == "character":
+                    api_name = rec.get("character", {}).get("characterName", "")
+                    if api_name.lower() == char_name.lower():
+                        return rec["character"]
+
+            # Strategy 2: normalize (remove spaces, hyphens, apostrophes)
+            def _norm(s):
+                return "".join(c for c in s.lower() if c.isalnum())
+
+            norm_target = _norm(char_name)
+            for rec in records:
+                if rec.get("type") == "character":
+                    api_name = rec.get("character", {}).get("characterName", "")
+                    if _norm(api_name) == norm_target:
+                        return rec["character"]
+
+            # Strategy 3: contains match (either direction)
+            for rec in records:
+                if rec.get("type") == "character":
+                    api_name = rec.get("character", {}).get("characterName", "")
+                    if norm_target and norm_target in _norm(api_name):
+                        return rec["character"]
+                    if _norm(api_name) and _norm(api_name) in norm_target:
+                        return rec["character"]
+
+            # Strategy 4: match by first word / truncated name
+            first_word = char_name.split()[0].lower() if char_name.split() else ""
+            if first_word and len(first_word) >= 3:
+                for rec in records:
+                    if rec.get("type") == "character":
+                        api_name = rec.get("character", {}).get("characterName", "")
+                        if api_name.lower().startswith(first_word):
+                            return rec["character"]
+
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoffs[attempt])
+                continue
+
+            # Log what we got for debugging
+            names_sample = [r.get("character", {}).get("characterName", "") for r in records[:5]]
+            print(f"  [Search NOMATCH] '{char_name}' — got: {names_sample}")
             return None
-
-        async with httpx.AsyncClient(timeout=15.0) as meta_client:
-            resp2 = await meta_client.get(uri, headers={"accept": "application/json"})
-            resp2.raise_for_status()
-            return resp2.json().get("name", "")
-    except Exception as e:
-        print(f"  [Metadata ERR] {token_id}: {e}")
-        return None
-
-
-async def _search_asset_key(char_name: str, nav_client: httpx.AsyncClient) -> Optional[dict]:
-    """Search Navigator by name to find assetKey."""
-    url = f"https://msu.io/navigator/api/navigator/search?keyword={char_name}&limit=20"
-    resp = await nav_client.get(url)
-    if resp.status_code != 200:
-        return None
-    for rec in resp.json().get("records", []):
-        if rec.get("type") == "character" and rec.get("character", {}).get("characterName", "").lower() == char_name.lower():
-            return rec["character"]
+        except Exception as e:
+            print(f"  [Search ERR] '{char_name}': {e} (attempt {attempt+1}/{max_retries})")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(backoffs[attempt])
+                continue
+            return None
     return None
 
 
 # Set of permanently unenrichable token IDs (not in Navigator, bad URI, etc)
 _unenrichable: Set[str] = set()
+
+# Track transient failures with retry counts (not permanent)
+_failed_counts: Dict[str, int] = {}
+_MAX_FAILS = 5  # After this many failures, mark as permanently unenrichable
 
 # ── Enrichment stats tracking ────────────────────────────────────────────
 _enrich_ok = 0
@@ -396,13 +487,13 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
             # Step 1: Get name
             char_name = await _token_uri_metadata(token_id)
             if not char_name:
-                print(f"  {prefix} No name from tokenURI")
+                print(f"  {prefix} No name from tokenURI — transient failure, will retry")
                 return False
 
             # Step 2: Search assetKey
             char_info = await _search_asset_key(char_name, nav_client)
             if not char_info:
-                print(f"  {prefix} Name '{char_name}' not found")
+                print(f"  {prefix} Name '{char_name}' not found — transient failure, will retry")
                 return False
 
             asset_key = char_info.get("assetKey", "")
@@ -568,23 +659,6 @@ async def run_populate(nft_type: str, batch_size: int = 10):
     print(f"{prefix} Starting (batch_size={batch_size})...")
 
     async with httpx.AsyncClient(timeout=30.0, verify=False) as nav_client:
-        # Cleanup: remove CP=0 dummy snapshots and reset their enriched flags
-        from sqlalchemy import text
-        try:
-            async with async_session() as session:
-                from db.database import CharacterSnapshot
-                zero_cp = (await session.execute(
-                    select(CharacterSnapshot.token_id).where(CharacterSnapshot.combat_power == 0)
-                )).scalars().all()
-                if zero_cp:
-                    await session.execute(text("DELETE FROM character_snapshots WHERE combat_power = 0"))
-                    await session.commit()
-                    await session.execute(text("UPDATE mint_events SET enriched = false, retry_count = 0"))
-                    await session.commit()
-                    print(f"[Populate] Cleaned up {len(zero_cp)} CP=0 dummy snapshots, reset enriched flags")
-        except Exception as e:
-            print(f"[Populate] Cleanup warning: {e}")
-
         while True:
             try:
                 # Get all minted tokens
@@ -599,11 +673,16 @@ async def run_populate(nft_type: str, batch_size: int = 10):
                 # Skip: already enriched (CP > 0) or permanently unenrichable
                 pending = all_tokens - have_snapshot - _unenrichable
 
-                if not pending:
+                # Also include tokens that have failed but haven't reached retry limit
+                retry_candidates = {tid for tid in _failed_counts if _failed_counts[tid] < _MAX_FAILS
+                                   and tid not in have_snapshot and tid not in _unenrichable}
+                retry_pending = retry_candidates - pending
+
+                if not pending and not retry_pending:
                     await asyncio.sleep(30)
                     continue
 
-                print(f"{prefix} {len(pending)} new characters to enrich...")
+                print(f"{prefix} {len(pending)} new + {len(retry_pending)} retry characters to enrich...")
 
                 sem = asyncio.Semaphore(10)
 
@@ -611,7 +690,11 @@ async def run_populate(nft_type: str, batch_size: int = 10):
                     async with sem:
                         return await _populate_from_navigator(tid, settings, nav_client)
 
+                # Take new tokens first, then fill remaining slots with retries
                 batch = list(pending)[:batch_size]
+                if len(batch) < batch_size and retry_pending:
+                    batch.extend(list(retry_pending)[:batch_size - len(batch)])
+
                 results = await asyncio.gather(*[populate_one(tid) for tid in batch], return_exceptions=True)
 
                 global _enrich_ok, _enrich_skip, _enrich_errors, _enrich_batch_count
@@ -622,16 +705,27 @@ async def run_populate(nft_type: str, batch_size: int = 10):
                 _enrich_skip += skipped
                 _enrich_errors += errs
                 _enrich_batch_count += 1
-                done = ok + skipped  # False means permanently unenrichable, add to skip set
 
-                print(f"{prefix} Batch: {ok} enriched, {skipped} skipped, {errs} errors")
+                # Track transient failures and promote to permanent after enough retries
+                for tid, result in zip(batch, results):
+                    if result is True:
+                        _failed_counts.pop(tid, None)  # Success — clear failure count
+                    elif isinstance(result, Exception) or result is False:
+                        _failed_counts[tid] = _failed_counts.get(tid, 0) + 1
+                        if _failed_counts[tid] >= _MAX_FAILS:
+                            _unenrichable.add(tid)
+                            _failed_counts.pop(tid, None)
+
+                print(f"{prefix} Batch: {ok} enriched, {skipped} skipped, {errs} errors "
+                      f"(transient tracking: {len(_failed_counts)} pending retry)")
 
                 if _enrich_batch_count % 10 == 0:
                     total_runs = _enrich_ok + _enrich_skip + _enrich_errors
                     rate = (_enrich_ok / total_runs * 100) if total_runs > 0 else 0
                     print(f"[Populate] Stats: {_enrich_ok} ok, {_enrich_skip} skipped, "
                           f"{_enrich_errors} errors ({rate:.1f}% success) | "
-                          f"{_enrich_batch_count} batches")
+                          f"{_enrich_batch_count} batches | "
+                          f"{len(_failed_counts)} transient, {len(_unenrichable)} permanent")
 
                 await asyncio.sleep(2)
 
