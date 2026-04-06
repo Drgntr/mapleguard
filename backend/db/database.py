@@ -153,9 +153,12 @@ def _resolve_db_url() -> str:
     url = get_settings().DATABASE_URL
     if not url:
         return "sqlite+aiosqlite:///./mapleguard.db"
-    # Convert postgresql:// to postgresql+asyncpg://
-    if url.startswith("postgresql://"):
-        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    # Convert postgresql:// or postgres:// to asyncpg dialect
+    if url.startswith(("postgresql://", "postgres://")):
+        if url.startswith("postgres://"):
+            url = url.replace("postgres://", "postgres+asyncpg://", 1)
+        else:
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
 
 
