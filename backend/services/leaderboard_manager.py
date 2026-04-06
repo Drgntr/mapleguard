@@ -463,15 +463,14 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
                     pad_total = int(pad_obj.get("total", 0) or 0) if isinstance(pad_obj, dict) else int(pad_obj or 0)
                     mad_total = int(mad_obj.get("total", 0) or 0) if isinstance(mad_obj, dict) else int(mad_obj or 0)
                     keys_sample = list(ap_stat.keys())[:8]
-                    pad_sample = f"pad={pad_total}, mad={mad_total}"
-                    print(f"  {prefix} FALLBACK — attackPower=0, keys={keys_sample}, {pad_sample}")
+                    print(f"  {prefix} FALLBACK — attackPower=0, keys={keys_sample}, pad_total={pad_total}, mad_total={mad_total}")
                     if pad_total > 0 or mad_total > 0:
                         cp_val = max(pad_total, mad_total)
 
             if cp_val == 0:
-                # Show sample of what apStat contains to debug
                 ap_keys = list(ap_stat.keys())[:10] if ap_stat else "EMPTY"
-                print(f"  {prefix} SKIP — no CP. apStat keys: {ap_keys}")
+                print(f"  {prefix} SKIP — CP=0, assetKey={asset_key}, apStat keys: {ap_keys}")
+                _unenrichable.add(token_id)
                 return False
 
             hyper_stat = char_data.get("hyperStat", {})
