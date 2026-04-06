@@ -148,7 +148,17 @@ class NFTTransferDB(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
 
-engine = create_async_engine(get_settings().DATABASE_URL, echo=False)
+def _resolve_db_url() -> str:
+    """Resolve database URL: fallback to SQLite if empty, convert postgresql:// to postgresql+asyncpg://."""
+    url = get_settings().DATABASE_URL
+    if not url:
+        return "sqlite+aiosqlite:///./mapleguard.db"
+    if url.startswith("postgresql://"):
+        url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    return url
+
+
+engine = create_async_engine(_resolve_db_url(), echo=False)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

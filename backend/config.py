@@ -32,8 +32,17 @@ class Settings(BaseSettings):
     CACHE_TTL_SECONDS: int = 30
     CACHE_TTL_LONG: int = 300
 
-    # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./mapleguard.db"
+    # Database (Railway auto-provisions PostgreSQL; fallback to SQLite for local)
+    DATABASE_URL: str = ""
+
+    def _get_database_url(self) -> str:
+        url = self.DATABASE_URL
+        if not url:
+            return "sqlite+aiosqlite:///./mapleguard.db"
+        # Railway injects DATABASE_URL as postgresql:// but SQLAlchemy needs asyncpg
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
 
     # Indexer
     INDEXER_START_BLOCK: int = 0
@@ -53,3 +62,10 @@ class Settings(BaseSettings):
 @lru_cache()
 def get_settings() -> Settings:
     return Settings()
+
+
+@lru_cache()
+def get_config() -> str:
+    """Return the resolved DATABASE_URL."""
+    settings = get_settings()
+    return settings._get_database_url()

@@ -11,6 +11,7 @@ API architecture (April 2026):
 """
 
 import asyncio
+import os
 import httpx
 from curl_cffi import requests as cffi_requests
 from datetime import datetime, timedelta
