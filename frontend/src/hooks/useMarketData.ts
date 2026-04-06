@@ -205,9 +205,7 @@ export function useJobsList() {
 }
 
 export function useJobLeaderboard(jobName?: string, limit = 100) {
-  const url = jobName
-    ? `/api/leaderboard/job/${encodeURIComponent(jobName)}?limit=${limit}`
-    : `/api/leaderboard/job?limit=${limit}`;
+  const url = `/api/leaderboard/job?limit=${limit}&${jobName ? `job=${encodeURIComponent(jobName)}` : ""}`;
   return useSWR<JobLeaderboardData>(url, fetcher, {
     refreshInterval: 60000,
   });

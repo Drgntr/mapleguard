@@ -109,18 +109,16 @@ async def list_jobs():
 
 
 @router.get("/job")
-async def job_leaderboard(limit: int = Query(100, ge=1, le=200)):
-    """Combined leaderboard across all jobs."""
-    return await leaderboard_db_service.get_job_leaderboard(limit=limit)
-
-
-@router.get("/job/{job_name}")
-async def job_leaderboard_by_name(
-    job_name: str,
+async def job_leaderboard(
+    job: str = Query(None, description="Filter by job name"),
     limit: int = Query(100, ge=1, le=200),
 ):
-    """Top 10 highlighted + full list up to limit for a specific job."""
-    return await leaderboard_db_service.get_job_leaderboard(job_name=job_name, limit=limit)
+    """Job leaderboard. No filter = all jobs. Use ?job=JobName to filter.
+
+    Uses query param instead of path param to handle special characters
+    in job names (e.g. 'Ice/Lightning', 'Battle Mage').
+    """
+    return await leaderboard_db_service.get_job_leaderboard(job_name=job, limit=limit)
 
 
 # ── Enrichment stats ──────────────────────────────────────────────────
