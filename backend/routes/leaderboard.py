@@ -59,15 +59,6 @@ async def combined_leaderboard(limit: int = Query(100, ge=1, le=200)):
     return await leaderboard_db_service.get_combined_leaderboard(limit=limit)
 
 
-@router.get("/by-class")
-async def leaderboard_by_class(
-    class_name: Optional[str] = Query(None, description="Filter by specific class. Omit for all classes."),
-    limit: int = Query(50, ge=1, le=200),
-):
-    """Leaderboard grouped by class."""
-    return await leaderboard_db_service.get_cp_leaderboard(class_name=class_name, limit=limit)
-
-
 @router.get("/cp-overview")
 async def cp_overview():
     """Quick CP summary: top 3 per class with stats."""
