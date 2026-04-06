@@ -428,7 +428,9 @@ async def _token_uri_metadata(token_id: str) -> Optional[str]:
             offset = int(data[:64], 16) * 2  # offset in hex chars (32 bytes = 64 hex)
             length = int(data[64 + offset:64 + offset + 64], 16)
             str_data = data[64 + offset + 64: 64 + offset + 64 + length * 2]
-            uri = bytes.fromhex(str_data).decode("utf-8")
+            raw_bytes = bytes.fromhex(str_data)
+            # Strip null bytes from ABI padding
+            uri = raw_bytes.rstrip(b"\x00").decode("utf-8")
 
             # Fetch actual metadata from URI
             resp2 = await client.get(uri, headers={"accept": "application/json"})
