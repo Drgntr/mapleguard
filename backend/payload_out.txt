@@ -1,0 +1,4 @@
+﻿URL: https://msu.io/marketplace/api/marketplace/explore/characters
+PAYLOAD: {"filter":{},"paginationParam":{"pageNo":1,"pageSize":135}}
+URL: https://msu.io/marketplace/api/marketplace/explore/characters
+PAYLOAD: {"filter":{},"paginationParam":{"pageNo":1,"pageSize":135}}

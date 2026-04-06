@@ -1,0 +1,63 @@
+# Secrets
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.egg-info
+.pytest_cache/
+
+# Node
+node_modules/
+.next/
+out/
+frontend/.next/
+frontend/node_modules/
+
+# Proxy files (CONTÉM CREDENCIAIS)
+Webshare*.txt
+*proxies*.txt
+webshare*.txt
+
+# Logs
+*.log
+server.log
+uvicorn.log
+error_cmd.log
+
+# Runtime state
+scripts/indexer_state.json
+scripts/scanner_state.json
+scripts/scanner_state_old.json
+scripts/snow_scanner_state.json
+
+# OS
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temp
+*.tmp
+*.bak
+*.orig
+test_*.txt
+test_*.json
+test_*.out

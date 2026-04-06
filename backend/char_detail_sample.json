@@ -1,0 +1,444 @@
+{
+  "tokenId": "1156134579491873071607432409047744222418403561457",
+  "name": "winthyer",
+  "owner": {
+    "walletAddr": "0xc8fb7AdD2B90a618B3Ff39f8BBf3643d8E1058b8",
+    "nickname": "aqua#6426",
+    "isExternalUser": false
+  },
+  "category": {
+    "categoryNo": 1020304001,
+    "label": "Character > Cygnus Knights > Bowman > Wind Archer",
+    "tier0": {
+      "label": "Character",
+      "code": "102"
+    },
+    "tier1": {
+      "label": "Cygnus Knights",
+      "code": "03"
+    },
+    "tier2": {
+      "label": "Bowman",
+      "code": "04"
+    },
+    "tier3": {
+      "label": "Wind Archer",
+      "code": "001"
+    }
+  },
+  "tokenInfo": {
+    "ownerWalletAddr": "0xc8fb7AdD2B90a618B3Ff39f8BBf3643d8E1058b8",
+    "tokenId": "1156134579491873071607432409047744222418403561457",
+    "tokenStandard": "ERC721",
+    "mintingNo": "0",
+    "tokenType": "characters"
+  },
+  "imageUrl": "https://market-static.msu.io/msu/platform/charimages/transient/MGExMGEyMDU4OWEwYTE0NTIxNDVhMzY1NzFhMTAwMjI3MGEwYTBhMGExMDUwMDU4YTEwNjAwMjZhMTA3MjE0NGExMDgyMDkwYTExMDI1MzRhMTM1Mjk3OWExMzExYTBhMGEwYTBhMmEwYTFhMGEwYTBhMGEwYTBhMA==.png",
+  "assetStatus": "AssetStatus_OnSale",
+  "mintingStatus": "MintingStatus_Minted",
+  "character": {
+    "tokenId": "1156134579491873071607432409047744222418403561457",
+    "name": "winthyer",
+    "category": {
+      "categoryNo": 1020304001,
+      "label": "Character > Cygnus Knights > Bowman > Wind Archer",
+      "tier0": {
+        "label": "Character",
+        "code": "102"
+      },
+      "tier1": {
+        "label": "Cygnus Knights",
+        "code": "03"
+      },
+      "tier2": {
+        "label": "Bowman",
+        "code": "04"
+      },
+      "tier3": {
+        "label": "Wind Archer",
+        "code": "001"
+      }
+    },
+    "common": {
+      "name": "winthyer",
+      "level": 80,
+      "worldCode": 1,
+      "job": {
+        "classCode": 4,
+        "className": "Bowman",
+        "jobCode": 1311,
+        "jobName": "Wind Archer",
+        "tier": 3
+      },
+      "nesoletWei": "0",
+      "exp": "20232",
+      "totalExp": "1496179",
+      "expr": "1.352",
+      "gender": 0,
+      "popularity": 0,
+      "starforceSum": 0,
+      "honorExp": 25000
+    },
+    "apStat": {
+      "str": {
+        "total": 57,
+        "base": 4,
+        "enhance": 53
+      },
+      "dex": {
+        "total": 528,
+        "base": 413,
+        "enhance": 115
+      },
+      "int": {
+        "total": 18,
+        "base": 4,
+        "enhance": 14
+      },
+      "luk": {
+        "total": 18,
+        "base": 4,
+        "enhance": 14
+      },
+      "hp": {
+        "total": 3063,
+        "base": 2374,
+        "enhance": 689
+      },
+      "mp": {
+        "total": 1718,
+        "base": 1483,
+        "enhance": 235
+      },
+      "damage": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "bossMonsterDamage": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "finalDamage": {
+        "total": 10,
+        "base": 0,
+        "enhance": 10
+      },
+      "ignoreDefence": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "criticalRate": {
+        "total": 18,
+        "base": 5,
+        "enhance": 13
+      },
+      "criticalDamage": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "buffDurationRate": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "abnormalStatusResistance": {
+        "total": 3,
+        "base": 0,
+        "enhance": 3
+      },
+      "defence": {
+        "total": 979,
+        "base": 979,
+        "enhance": 0
+      },
+      "speed": {
+        "total": 135,
+        "base": 135,
+        "enhance": 0
+      },
+      "jump": {
+        "total": 115,
+        "base": 115,
+        "enhance": 0
+      },
+      "knockbackResistance": {
+        "total": 12,
+        "base": 0,
+        "enhance": 12
+      },
+      "pad": {
+        "total": 125,
+        "base": 125,
+        "enhance": 0
+      },
+      "mad": {
+        "total": 1,
+        "base": 1,
+        "enhance": 0
+      },
+      "nonBossMonsterDamageRate": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "cooltimeReduce": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "cooltimeReduceRate": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "cooltimeReset": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "elementDecrease": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "abnormalDamageRate": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "summonTimer": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "starforce": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "addExp": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "attackSpeed": {
+        "total": 7,
+        "base": 7,
+        "enhance": 0
+      },
+      "arcaneForce": {
+        "total": 0,
+        "base": 0,
+        "enhance": 0
+      },
+      "attackPower": "1897"
+    },
+    "hyperStat": {},
+    "ability": {
+      "ability1": {
+        "grade": 1,
+        "code": 70000015,
+        "desc": "All Stats: +1",
+        "values": []
+      },
+      "ability2": {
+        "grade": 1,
+        "code": 70000015,
+        "desc": "All Stats: +3",
+        "values": []
+      },
+      "ability3": {
+        "grade": 1,
+        "code": 70000015,
+        "desc": "All Stats: +5",
+        "values": []
+      }
+    },
+    "abilityPreset": {
+      "selectedAbilitySlot": 1,
+      "abilityPreset1": {
+        "ability1": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +1",
+          "values": []
+        },
+        "ability2": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +3",
+          "values": []
+        },
+        "ability3": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +5",
+          "values": []
+        }
+      },
+      "abilityPreset2": {
+        "ability1": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +1",
+          "values": []
+        },
+        "ability2": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +3",
+          "values": []
+        },
+        "ability3": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +5",
+          "values": []
+        }
+      },
+      "abilityPreset3": {
+        "ability1": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +1",
+          "values": []
+        },
+        "ability2": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +3",
+          "values": []
+        },
+        "ability3": {
+          "grade": 1,
+          "code": 70000015,
+          "desc": "All Stats: +5",
+          "values": []
+        }
+      }
+    },
+    "wearing": {
+      "equip": {
+        "cap": {
+          "itemId": 1002270,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1002270.png"
+        },
+        "clothes": {
+          "itemId": 1050058,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1050058.png"
+        },
+        "shoes": {
+          "itemId": 1072144,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1072144.png"
+        },
+        "gloves": {
+          "itemId": 1082090,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1082090.png"
+        },
+        "cape": {
+          "itemId": 1102534,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1102534.png"
+        },
+        "subWeapon": {
+          "itemId": 1352979,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1352979.png"
+        },
+        "weapon": {
+          "itemId": 1452145,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1452145.png"
+        },
+        "medal": {
+          "itemId": 1142622,
+          "mintable": false,
+          "potential": 0,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/1142622.png"
+        }
+      },
+      "cashEquip": {},
+      "pet": {
+        "pet1": {
+          "itemId": 5000054,
+          "mintable": false,
+          "imageUrl": "https://api-static.msu.io/itemimages/icon/5000054.png"
+        }
+      },
+      "arcaneSymbols": {
+        "totalArcaneForce": 0,
+        "totalStat": {},
+        "slots": [
+          {
+            "itemId": 0,
+            "imageUrl": "",
+            "level": 0,
+            "maxLevel": 0,
+            "currentExp": 0,
+            "totalExp": 0,
+            "arcaneForce": 0,
+            "stat": {}
+          },
+          {
+            "itemId": 0,
+            "imageUrl": "",
+            "level": 0,
+            "maxLevel": 0,
+            "currentExp": 0,
+            "totalExp": 0,
+            "arcaneForce": 0,
+            "stat": {}
+          },
+          {
+            "itemId": 0,
+            "imageUrl": "",
+            "level": 0,
+            "maxLevel": 0,
+            "currentExp": 0,
+            "totalExp": 0,
+            "arcaneForce": 0,
+            "stat": {}
+          }
+        ]
+      }
+    }
+  },
+  "ranking": {
+    "totalRank": 813031,
+    "jobRank": 3368
+  },
+  "salesInfo": {
+    "tokenId": "1156134579491873071607432409047744222418403561457",
+    "sellerWalletAddr": "0xc8fb7AdD2B90a618B3Ff39f8BBf3643d8E1058b8",
+    "createdAt": "2026-03-30T02:43:00Z",
+    "expiredAt": "2026-04-02T02:43:00Z",
+    "priceWei": "854999000000000000000000",
+    "quantity": "1",
+    "minimumPriceWei": "",
+    "lastTradedPriceWei": ""
+  },
+  "additionalInfo": {
+    "viewCount": "565",
+    "bookmarkCount": "0"
+  },
+  "nicknameInfo": {
+    "isMinted": false
+  },
+  "updatedAt": "2026-03-30T02:43:01.036Z",
+  "assetKey": "CHARd6bt1llilitc739fc8p0"
+}

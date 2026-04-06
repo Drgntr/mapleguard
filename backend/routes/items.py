@@ -1,0 +1,298 @@
+from fastapi import APIRouter, Query
+from typing import Optional
+
+from services.market_data import market_data_service
+from services.rarity_engine import rarity_engine
+from services.cache import cache_get, cache_set
+from services.item_catalog import catalog_service
+from config import get_settings
+
+settings = get_settings()
+router = APIRouter(prefix="/api/items", tags=["Items"])
+
+
+@router.get("/catalog")
+async def get_catalog(query: str = Query("")):
+    """Get a list of common high-tier items for the calculator."""
+    return {"items": catalog_service.get_catalog(query)}
+
+
+@router.get("/")
+async def list_items(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    sorting: str = Query("ExploreSorting_RECENTLY_LISTED"),
+    category_no: Optional[int] = None,
+):
+    """List marketplace items with filtering."""
+    items, is_last = await market_data_service.fetch_items(
+        page=page,
+        page_size=page_size,
+        sorting=sorting,
+        category_no=category_no,
+    )
+    return {
+        "items": [i.model_dump() for i in items],
+        "page": page,
+        "page_size": page_size,
+        "count": len(items),
+        "is_last_page": is_last,
+    }
+
+
+@router.get("/recently-listed")
+async def recently_listed(count: int = Query(30, ge=1, le=100)):
+    """Get recently listed items and characters (normalized)."""
+    data = await market_data_service.fetch_recently_listed(count)
+    return {"listed": data, "count": len(data)}
+
+
+@router.get("/consumables")
+async def consumables():
+    """Get consumable items with price and volume data."""
+    data = await market_data_service.fetch_consumables()
+    return {"items": [c.model_dump() for c in data], "count": len(data)}
+
+
+@router.get("/underpriced")
+async def underpriced_items(
+    discount_threshold: float = Query(0.30, ge=0.05, le=0.95),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Find items listed below their fair market value."""
+    cache_key = f"underpriced:{discount_threshold}:{limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    items = await market_data_service.fetch_all_items(max_pages=3)
+
+    rarity_engine.rebuild_index(items)
+    underpriced = rarity_engine.find_underpriced(items, discount_threshold)
+
+    result = {"items": underpriced[:limit], "count": min(len(underpriced), limit)}
+    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_SECONDS)
+    return result
+
+
+@router.get("/lookup")
+async def item_lookup(query: str = Query(..., description="Numeric marketplace ID, asset key (ITEM...), or item name")):
+    """
+    Flexible item lookup. Accepts:
+    - Numeric NFT ID from marketplace URL (e.g. 8371514744002029434355400508674)
+    - ITEM... asset key token ID
+    - Item name (searches catalog + MSU marketplace)
+    """
+    q = query.strip()
+
+    # 1. Numeric marketplace listing ID (big number) — get assetKey, then Open API
+    if q.isdigit():
+        cache_key = f"lookup_numeric_v3:{q}"
+        cached = await cache_get(cache_key)
+        if cached:
+            return cached
+        try:
+            # First get assetKey from marketplace, then fetch detail via Open API
+            item = await market_data_service.fetch_item_detail(q)
+            if item:
+                result = item.model_dump()
+                result["source"] = "openapi"
+                await cache_set(cache_key, result, ttl=3600)
+                return {"item": result}
+            return {"error": f"Item not found for ID: {q}", "query": q}
+        except Exception as e:
+            return {"error": f"Lookup failed: {str(e)}", "query": q}
+
+    # 2. Asset key (ITEM...)
+    if q.upper().startswith("ITEM"):
+        cache_key = f"lookup_asset_v2:{q}"
+        cached = await cache_get(cache_key)
+        if cached:
+            return cached
+        
+        item = await market_data_service.fetch_item_detail(q)
+        if item:
+            return {"item": {**item.model_dump(), "source": "asset_key"}}
+        return {"error": "Asset key not found", "query": q}
+
+    # 3. Name search — first check local catalog
+    catalog_hits = catalog_service.get_catalog(q)
+    if catalog_hits:
+        # Return best match with base stats stub
+        best = catalog_hits[0]
+        result = {
+            "item_id": best["item_id"],
+            "name": best["name"],
+            "required_level": best.get("level", 0),
+            "starforce": 0,
+            "potential_grade": 0,
+            "bonus_potential_grade": 0,
+            "image_url": f"https://api-static.msu.io/itemimages/icon/{best['item_id']}.png",
+            "source": "catalog",
+        }
+        return {"item": result, "all_results": catalog_hits[:24]}
+
+    # 4. Name search — fall back to MSU marketplace explore via POST
+    try:
+        # The explore endpoint only accepts POST; scan a page and match by name
+        search_url = f"{settings.MSU_API_BASE}/marketplace/explore/items"
+        body = {
+            "filter": {"price": {"min": 0, "max": 10_000_000_000}},
+            "sorting": "ExploreSorting_RECENTLY_LISTED",
+            "paginationParam": {"pageNo": 1, "pageSize": 50},
+        }
+        raw = market_data_service._post(search_url, body, ITEM_HEADERS)
+        raw_items = raw.get("items", raw.get("data", []))
+        kw = q.lower()
+        matches = []
+        for it in raw_items:
+            title = it.get("name", "").lower()
+            if kw in title:
+                data = it.get("data", {})
+                sales = it.get("salesInfo", {})
+                matches.append({
+                    "item_id": data.get("itemId"),
+                    "name": it.get("name", ""),
+                    "token_id": str(it.get("tokenId", "")),
+                    "starforce": data.get("starforce", 0),
+                    "potential_grade": data.get("potentialGrade", 0),
+                    "required_level": data.get("requiredLevel", 0),
+                    "image_url": it.get("imageUrl", ""),
+                    "price_wei": str(sales.get("priceWei", "0")),
+                    "source": "marketplace_search",
+                })
+                if len(matches) >= 6:
+                    break
+        if matches:
+            return {"item": matches[0], "all_results": matches}
+    except Exception:
+        pass
+
+    return {"error": "Item not found", "query": q}
+
+
+@router.get("/floor-prices")
+async def item_floor_prices():
+    """Compute floor prices by (item_name, starforce_bracket, potential_grade)."""
+    cache_key = "items:floor_prices_v1"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    items = await market_data_service.fetch_all_items(max_pages=3)
+
+    floors: dict[str, dict[str, dict]] = {}  # name -> sf_bracket -> {floor, median, count}
+
+    for item in items:
+        if item.price <= 0:
+            continue
+        name = item.name
+        sf_bracket = f"SF{item.starforce}" if item.starforce > 0 else "NSF"
+        pot_grade = item.potential_grade
+        key = f"{name}|{sf_bracket}|{pot_grade}"
+
+        if name not in floors:
+            floors[name] = {}
+        if sf_bracket not in floors[name]:
+            floors[name][sf_bracket] = {}
+        if pot_grade not in floors[name][sf_bracket]:
+            floors[name][sf_bracket][pot_grade] = []
+
+        floors[name][sf_bracket][pot_grade].append(item.price)
+
+    result = {}
+    for name, sf_map in floors.items():
+        result[name] = {}
+        for sf, grade_map in sf_map.items():
+            result[name][sf] = {}
+            for grade_str, prices in grade_map.items():
+                prices.sort()
+                median = prices[len(prices) // 2]
+                result[name][sf][grade_str] = {
+                    "floor": prices[0],
+                    "median": median,
+                    "count": len(prices),
+                }
+
+    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG)
+    return {"floor_prices": result, "sample_size": len(items)}
+
+
+@router.get("/{token_id}/detail")
+async def item_detail(token_id: str):
+    """Get full item detail with stats, potentials, and scarcity score."""
+    item = await market_data_service.fetch_item_detail(token_id)
+    if not item:
+        return {"error": "Item not found", "token_id": token_id}
+
+    # Compute scarcity if engine is populated
+    score = None
+    if rarity_engine._total_items > 0:
+        score = rarity_engine.compute_score(item).model_dump()
+
+    return {"item": item.model_dump(), "scarcity": score}
+
+
+@router.get("/{token_id}/scarcity")
+async def item_scarcity(token_id: str):
+    """Get scarcity score for a specific item."""
+    cache_key = f"scarcity:{token_id}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    # Need index populated
+    if rarity_engine._total_items == 0:
+        items = await market_data_service.fetch_all_items(max_pages=3)
+        rarity_engine.rebuild_index(items)
+
+    # Find in existing index or fetch detail
+    target = next((i for i in rarity_engine._items if i.token_id == token_id), None)
+    if not target:
+        target = await market_data_service.fetch_item_detail(token_id)
+
+    if not target:
+        return {"error": "Item not found", "token_id": token_id}
+
+    score = rarity_engine.compute_score(target)
+    result = score.model_dump()
+    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG)
+    return result
+
+
+@router.get("/trade-history/{item_id}")
+async def trade_history(
+    item_id: int,
+    page_size: int = Query(50, ge=1, le=200),
+):
+    """Get trade history for an item type."""
+    trades = await market_data_service.fetch_trade_history(item_id, page_size)
+    return {
+        "item_id": item_id,
+        "trades": [t.model_dump() for t in trades],
+        "count": len(trades),
+    }
+
+
+@router.get("/ohlc/{item_id}")
+async def item_ohlc(
+    item_id: int,
+    interval: int = Query(60, description="Interval in minutes"),
+):
+    """Get OHLC candlestick data from trade history."""
+    cache_key = f"ohlc:{item_id}:{interval}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    trades = await market_data_service.fetch_trade_history(item_id, page_size=200)
+    bars = market_data_service.compute_ohlc(trades, interval)
+
+    result = {
+        "item_id": item_id,
+        "interval_minutes": interval,
+        "bars": [b.model_dump() for b in bars],
+        "trade_count": len(trades),
+    }
+    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_SECONDS)
+    return result

@@ -1,0 +1,82 @@
+﻿python : Traceback (most 
+recent call last):
+No linha:1 caractere:1
++ python -c "import sys; sys.p
+ath.append(r'C:\Scripts\Maple\
+MapleGuard\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (Traceback  
+   (most recent call last):   
+ :String) [], RemoteExcept    
+ion
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+  File "<string>", line 1, in 
+<module>
+    import sys; sys.path.appen
+d(r'C:\Scripts\Maple\MapleGuar
+d\backend'); import 
+services.market_data
+                              
+                              
+             
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Scripts\Maple\Maple
+Guard\backend\services\market_
+data.py", line 21, in <module>
+    from services.cache 
+import cache_get, cache_set
+  File "C:\Scripts\Maple\Maple
+Guard\backend\services\cache.p
+y", line 7, in <module>
+    settings = get_settings()
+  File "C:\Scripts\Maple\Maple
+Guard\backend\config.py", 
+line 46, in get_settings
+    return Settings()
+  File "C:\Users\Axie1\AppData
+\Local\Programs\Python\Python3
+13\Lib\site-packages\pydantic_
+settings\main.py", line 242, 
+in __init__
+    super().__init__(**__pydan
+tic_self__.__class__._settings
+_build_values(sources, 
+init_kwargs))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^
+  File "C:\Users\Axie1\AppData
+\Local\Programs\Python\Python3
+13\Lib\site-packages\pydantic\
+main.py", line 253, in 
+__init__
+    validated_self = self.__py
+dantic_validator__.validate_py
+thon(data, self_instance=self)
+pydantic_core._pydantic_core.V
+alidationError: 2 validation 
+errors for Settings
+db_path
+  Extra inputs are not 
+permitted 
+[type=extra_forbidden, input_v
+alue='../backend/mapleguard.db
+', input_type=str]
+    For further information 
+visit https://errors.pydantic.
+dev/2.11/v/extra_forbidden
+next_public_api_url
+  Extra inputs are not 
+permitted 
+[type=extra_forbidden, input_v
+alue='http://localhost:8000', 
+input_type=str]
+    For further information 
+visit https://errors.pydantic.
+dev/2.11/v/extra_forbidden

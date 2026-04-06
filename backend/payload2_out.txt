@@ -1,0 +1,2 @@
+﻿BINGO_URL: https://msu.io/marketplace/api/marketplace/explore/characters
+BINGO_PAYLOAD: {"filter":{},"paginationParam":{"pageNo":1,"pageSize":135}}

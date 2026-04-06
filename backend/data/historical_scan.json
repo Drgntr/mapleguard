@@ -1,0 +1,1692 @@
+{
+  "analysis": {
+    "price_distribution": {
+      "total_items": 675,
+      "price_clusters": [
+        {
+          "price": 210000.0,
+          "count": 20,
+          "percentage": 3.0
+        },
+        {
+          "price": 222200.0,
+          "count": 20,
+          "percentage": 3.0
+        },
+        {
+          "price": 20000.0,
+          "count": 20,
+          "percentage": 3.0
+        },
+        {
+          "price": 100000.0,
+          "count": 15,
+          "percentage": 2.2
+        },
+        {
+          "price": 80000.0,
+          "count": 15,
+          "percentage": 2.2
+        },
+        {
+          "price": 250000.0,
+          "count": 15,
+          "percentage": 2.2
+        },
+        {
+          "price": 630000.0,
+          "count": 15,
+          "percentage": 2.2
+        },
+        {
+          "price": 90000.0,
+          "count": 15,
+          "percentage": 2.2
+        },
+        {
+          "price": 300000.0,
+          "count": 15,
+          "percentage": 2.2
+        },
+        {
+          "price": 221000.0,
+          "count": 15,
+          "percentage": 2.2
+        },
+        {
+          "price": 220000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 2100000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 240000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 450000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 5000000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 30000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 10000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 15000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 69000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 230000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 2600000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 299600.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 233300.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 208900.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 50000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 130000.0,
+          "count": 10,
+          "percentage": 1.5
+        },
+        {
+          "price": 48000000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 3500000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 2150000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 215000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 85000000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 550000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 275000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 66700.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 15500000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 2980000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 133300.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 248900.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 595500.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 1490000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 2000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 500000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 40000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 555600.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 49000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 305200.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 160000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 224300.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 479000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 48000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 73800.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 27000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 47000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 9300.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 7800.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 363400.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 319000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 410000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 239200.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 119800.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 33333300.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 225300.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 166000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 208700.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 1500000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 211100.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 17777800.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 7490000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 222000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 223800.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 129000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 54900.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 278000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 19800.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 21000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 239800.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 96000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 16600.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 98000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 570000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 188900.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 6700.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 110000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 75000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 295000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 6000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 23900.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 25000000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 11000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 55000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 288900.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 1250000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 280000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 248000.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 54400.0,
+          "count": 5,
+          "percentage": 0.7
+        },
+        {
+          "price": 249500.0,
+          "count": 5,
+          "percentage": 0.7
+        }
+      ],
+      "outliers": [
+        {
+          "token_id": "8380984410594463884709562664450",
+          "name": "Arcane Umbra Knight Cape",
+          "price": 48000000.0,
+          "z_score": 5.0
+        },
+        {
+          "token_id": "8285622753006910637340009368578",
+          "name": "Gold Maple Leaf Emblem",
+          "price": 85000000.0,
+          "z_score": 9.03
+        },
+        {
+          "token_id": "8251471039963120137439882817282",
+          "name": "Shark Tooth Skipper Boots",
+          "price": 33333333.0,
+          "z_score": 3.4
+        },
+        {
+          "token_id": "8380984410594463884709562664450",
+          "name": "Arcane Umbra Knight Cape",
+          "price": 48000000.0,
+          "z_score": 5.0
+        },
+        {
+          "token_id": "8285622753006910637340009368578",
+          "name": "Gold Maple Leaf Emblem",
+          "price": 85000000.0,
+          "z_score": 9.03
+        },
+        {
+          "token_id": "8251471039963120137439882817282",
+          "name": "Shark Tooth Skipper Boots",
+          "price": 33333333.0,
+          "z_score": 3.4
+        },
+        {
+          "token_id": "8380984410594463884709562664450",
+          "name": "Arcane Umbra Knight Cape",
+          "price": 48000000.0,
+          "z_score": 5.0
+        },
+        {
+          "token_id": "8285622753006910637340009368578",
+          "name": "Gold Maple Leaf Emblem",
+          "price": 85000000.0,
+          "z_score": 9.03
+        },
+        {
+          "token_id": "8251471039963120137439882817282",
+          "name": "Shark Tooth Skipper Boots",
+          "price": 33333333.0,
+          "z_score": 3.4
+        },
+        {
+          "token_id": "8380984410594463884709562664450",
+          "name": "Arcane Umbra Knight Cape",
+          "price": 48000000.0,
+          "z_score": 5.0
+        },
+        {
+          "token_id": "8285622753006910637340009368578",
+          "name": "Gold Maple Leaf Emblem",
+          "price": 85000000.0,
+          "z_score": 9.03
+        },
+        {
+          "token_id": "8251471039963120137439882817282",
+          "name": "Shark Tooth Skipper Boots",
+          "price": 33333333.0,
+          "z_score": 3.4
+        },
+        {
+          "token_id": "8380984410594463884709562664450",
+          "name": "Arcane Umbra Knight Cape",
+          "price": 48000000.0,
+          "z_score": 5.0
+        },
+        {
+          "token_id": "8285622753006910637340009368578",
+          "name": "Gold Maple Leaf Emblem",
+          "price": 85000000.0,
+          "z_score": 9.03
+        },
+        {
+          "token_id": "8251471039963120137439882817282",
+          "name": "Shark Tooth Skipper Boots",
+          "price": 33333333.0,
+          "z_score": 3.4
+        }
+      ],
+      "suspicious_patterns": [],
+      "avg_price": 2120744.21,
+      "std_dev": 9181852.21,
+      "coefficient_of_variation": 433.0
+    },
+    "wallet_concentration": {
+      "total_sellers": 0,
+      "whale_wallets": [],
+      "concentration_alerts": [],
+      "hhi_index": 0
+    },
+    "item_hoarding": {
+      "cornered_items": []
+    },
+    "character_market": {
+      "class_analysis": {
+        "Shadower": {
+          "count": 50,
+          "avg_price": 30124569.0,
+          "median_price": 7999999.0,
+          "floor_price": 888887.0,
+          "max_price": 168168168.0,
+          "spread": 167279281.0
+        },
+        "Luminous": {
+          "count": 170,
+          "avg_price": 7997352.38,
+          "median_price": 1322221.0,
+          "floor_price": 1100000.0,
+          "max_price": 58000000.0,
+          "spread": 56900000.0
+        },
+        "Buccaneer": {
+          "count": 20,
+          "avg_price": 3337499.75,
+          "median_price": 1600000.0,
+          "floor_price": 450000.0,
+          "max_price": 10800000.0,
+          "spread": 10350000.0
+        },
+        "Thunder Breaker": {
+          "count": 30,
+          "avg_price": 5248333.33,
+          "median_price": 2390000.0,
+          "floor_price": 1000000.0,
+          "max_price": 14000000.0,
+          "spread": 13000000.0
+        },
+        "Night Walker": {
+          "count": 20,
+          "avg_price": 1755000.0,
+          "median_price": 1790000.0,
+          "floor_price": 1650000.0,
+          "max_price": 1890000.0,
+          "spread": 240000.0
+        },
+        "Bishop": {
+          "count": 10,
+          "avg_price": 18000000.0,
+          "median_price": 35000000.0,
+          "floor_price": 1000000.0,
+          "max_price": 35000000.0,
+          "spread": 34000000.0
+        },
+        "Aran": {
+          "count": 20,
+          "avg_price": 24190971.75,
+          "median_price": 19990000.0,
+          "floor_price": 365000.0,
+          "max_price": 74908888.0,
+          "spread": 74543888.0
+        },
+        "Bowmaster": {
+          "count": 70,
+          "avg_price": 1068555.21,
+          "median_price": 480000.0,
+          "floor_price": 345678.0,
+          "max_price": 8888888.0,
+          "spread": 8543210.0
+        },
+        "Paladin": {
+          "count": 10,
+          "avg_price": 20277048.0,
+          "median_price": 40000000.0,
+          "floor_price": 554096.0,
+          "max_price": 40000000.0,
+          "spread": 39445904.0
+        },
+        "Ice/Lightning Arch Mage": {
+          "count": 20,
+          "avg_price": 37975000.0,
+          "median_price": 39000000.0,
+          "floor_price": 2800000.0,
+          "max_price": 105000000.0,
+          "spread": 102200000.0
+        },
+        "Night Lord": {
+          "count": 15,
+          "avg_price": 104094962.33,
+          "median_price": 11888888.0,
+          "floor_price": 396000.0,
+          "max_price": 299999999.0,
+          "spread": 299603999.0
+        },
+        "Priest": {
+          "count": 20,
+          "avg_price": 323883.5,
+          "median_price": 348197.0,
+          "floor_price": 140117.0,
+          "max_price": 475276.0,
+          "spread": 335159.0
+        },
+        "Corsair": {
+          "count": 40,
+          "avg_price": 5064347.0,
+          "median_price": 1500000.0,
+          "floor_price": 778726.0,
+          "max_price": 27000000.0,
+          "spread": 26221274.0
+        },
+        "Wind Archer": {
+          "count": 30,
+          "avg_price": 60899999.67,
+          "median_price": 25000000.0,
+          "floor_price": 2400000.0,
+          "max_price": 218888888.0,
+          "spread": 216488888.0
+        },
+        "Shade": {
+          "count": 5,
+          "avg_price": 15000000.0,
+          "median_price": 15000000.0,
+          "floor_price": 15000000.0,
+          "max_price": 15000000.0,
+          "spread": 0.0
+        },
+        "Evan": {
+          "count": 5,
+          "avg_price": 1899999.0,
+          "median_price": 1899999.0,
+          "floor_price": 1899999.0,
+          "max_price": 1899999.0,
+          "spread": 0.0
+        },
+        "Hero": {
+          "count": 10,
+          "avg_price": 652701.0,
+          "median_price": 850000.0,
+          "floor_price": 455402.0,
+          "max_price": 850000.0,
+          "spread": 394598.0
+        },
+        "Marauder": {
+          "count": 5,
+          "avg_price": 140370.0,
+          "median_price": 140370.0,
+          "floor_price": 140370.0,
+          "max_price": 140370.0,
+          "spread": 0.0
+        },
+        "Marksman": {
+          "count": 30,
+          "avg_price": 7570946.33,
+          "median_price": 12000000.0,
+          "floor_price": 345678.0,
+          "max_price": 18000000.0,
+          "spread": 17654322.0
+        },
+        "Fire/Poison Arch Mage": {
+          "count": 50,
+          "avg_price": 716949.7,
+          "median_price": 669000.0,
+          "floor_price": 599999.0,
+          "max_price": 1240000.0,
+          "spread": 640001.0
+        },
+        "Mihile": {
+          "count": 10,
+          "avg_price": 2320000.0,
+          "median_price": 2390000.0,
+          "floor_price": 2250000.0,
+          "max_price": 2390000.0,
+          "spread": 140000.0
+        },
+        "Dawn Warrior": {
+          "count": 5,
+          "avg_price": 2555555.0,
+          "median_price": 2555555.0,
+          "floor_price": 2555555.0,
+          "max_price": 2555555.0,
+          "spread": 0.0
+        },
+        "Phantom": {
+          "count": 15,
+          "avg_price": 10159999.67,
+          "median_price": 6999999.0,
+          "floor_price": 1480000.0,
+          "max_price": 22000000.0,
+          "spread": 20520000.0
+        },
+        "Mercedes": {
+          "count": 5,
+          "avg_price": 1333333.0,
+          "median_price": 1333333.0,
+          "floor_price": 1333333.0,
+          "max_price": 1333333.0,
+          "spread": 0.0
+        },
+        "Fire/Poison Mage": {
+          "count": 5,
+          "avg_price": 250000.0,
+          "median_price": 250000.0,
+          "floor_price": 250000.0,
+          "max_price": 250000.0,
+          "spread": 0.0
+        },
+        "Blaze Wizard": {
+          "count": 5,
+          "avg_price": 2690000.0,
+          "median_price": 2690000.0,
+          "floor_price": 2690000.0,
+          "max_price": 2690000.0,
+          "spread": 0.0
+        }
+      },
+      "underpriced_chars": [
+        {
+          "token_id": "368763932808017629840549736491494355471774905068",
+          "name": "Afterimage",
+          "class": "Shadower",
+          "level": 150,
+          "price": 1525221.9999999998,
+          "median": 7999999.0,
+          "discount_pct": 80.9
+        },
+        {
+          "token_id": "862276965763157420492547193825683590539400103544",
+          "name": "DanerZ",
+          "class": "Shadower",
+          "level": 140,
+          "price": 1050000.0,
+          "median": 7999999.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1064288497191107968721028290334473651103516905295",
+          "name": "lokoaa",
+          "class": "Shadower",
+          "level": 159,
+          "price": 1813416.0,
+          "median": 7999999.0,
+          "discount_pct": 77.3
+        },
+        {
+          "token_id": "97228352977595326769620542127093067601527607192",
+          "name": "LesterL",
+          "class": "Shadower",
+          "level": 123,
+          "price": 888887.0,
+          "median": 7999999.0,
+          "discount_pct": 88.9
+        },
+        {
+          "token_id": "1348080694358157671177447871789171909238350626431",
+          "name": "zLiam",
+          "class": "Shadower",
+          "level": 153,
+          "price": 1800000.0,
+          "median": 7999999.0,
+          "discount_pct": 77.5
+        },
+        {
+          "token_id": "368763932808017629840549736491494355471774905068",
+          "name": "Afterimage",
+          "class": "Shadower",
+          "level": 150,
+          "price": 1525221.9999999998,
+          "median": 7999999.0,
+          "discount_pct": 80.9
+        },
+        {
+          "token_id": "862276965763157420492547193825683590539400103544",
+          "name": "DanerZ",
+          "class": "Shadower",
+          "level": 140,
+          "price": 1050000.0,
+          "median": 7999999.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1064288497191107968721028290334473651103516905295",
+          "name": "lokoaa",
+          "class": "Shadower",
+          "level": 159,
+          "price": 1813416.0,
+          "median": 7999999.0,
+          "discount_pct": 77.3
+        },
+        {
+          "token_id": "97228352977595326769620542127093067601527607192",
+          "name": "LesterL",
+          "class": "Shadower",
+          "level": 123,
+          "price": 888887.0,
+          "median": 7999999.0,
+          "discount_pct": 88.9
+        },
+        {
+          "token_id": "1348080694358157671177447871789171909238350626431",
+          "name": "zLiam",
+          "class": "Shadower",
+          "level": 153,
+          "price": 1800000.0,
+          "median": 7999999.0,
+          "discount_pct": 77.5
+        },
+        {
+          "token_id": "368763932808017629840549736491494355471774905068",
+          "name": "Afterimage",
+          "class": "Shadower",
+          "level": 150,
+          "price": 1525221.9999999998,
+          "median": 7999999.0,
+          "discount_pct": 80.9
+        },
+        {
+          "token_id": "862276965763157420492547193825683590539400103544",
+          "name": "DanerZ",
+          "class": "Shadower",
+          "level": 140,
+          "price": 1050000.0,
+          "median": 7999999.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1064288497191107968721028290334473651103516905295",
+          "name": "lokoaa",
+          "class": "Shadower",
+          "level": 159,
+          "price": 1813416.0,
+          "median": 7999999.0,
+          "discount_pct": 77.3
+        },
+        {
+          "token_id": "97228352977595326769620542127093067601527607192",
+          "name": "LesterL",
+          "class": "Shadower",
+          "level": 123,
+          "price": 888887.0,
+          "median": 7999999.0,
+          "discount_pct": 88.9
+        },
+        {
+          "token_id": "1348080694358157671177447871789171909238350626431",
+          "name": "zLiam",
+          "class": "Shadower",
+          "level": 153,
+          "price": 1800000.0,
+          "median": 7999999.0,
+          "discount_pct": 77.5
+        },
+        {
+          "token_id": "368763932808017629840549736491494355471774905068",
+          "name": "Afterimage",
+          "class": "Shadower",
+          "level": 150,
+          "price": 1525221.9999999998,
+          "median": 7999999.0,
+          "discount_pct": 80.9
+        },
+        {
+          "token_id": "862276965763157420492547193825683590539400103544",
+          "name": "DanerZ",
+          "class": "Shadower",
+          "level": 140,
+          "price": 1050000.0,
+          "median": 7999999.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1064288497191107968721028290334473651103516905295",
+          "name": "lokoaa",
+          "class": "Shadower",
+          "level": 159,
+          "price": 1813416.0,
+          "median": 7999999.0,
+          "discount_pct": 77.3
+        },
+        {
+          "token_id": "97228352977595326769620542127093067601527607192",
+          "name": "LesterL",
+          "class": "Shadower",
+          "level": 123,
+          "price": 888887.0,
+          "median": 7999999.0,
+          "discount_pct": 88.9
+        },
+        {
+          "token_id": "1348080694358157671177447871789171909238350626431",
+          "name": "zLiam",
+          "class": "Shadower",
+          "level": 153,
+          "price": 1800000.0,
+          "median": 7999999.0,
+          "discount_pct": 77.5
+        },
+        {
+          "token_id": "368763932808017629840549736491494355471774905068",
+          "name": "Afterimage",
+          "class": "Shadower",
+          "level": 150,
+          "price": 1525221.9999999998,
+          "median": 7999999.0,
+          "discount_pct": 80.9
+        },
+        {
+          "token_id": "862276965763157420492547193825683590539400103544",
+          "name": "DanerZ",
+          "class": "Shadower",
+          "level": 140,
+          "price": 1050000.0,
+          "median": 7999999.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1064288497191107968721028290334473651103516905295",
+          "name": "lokoaa",
+          "class": "Shadower",
+          "level": 159,
+          "price": 1813416.0,
+          "median": 7999999.0,
+          "discount_pct": 77.3
+        },
+        {
+          "token_id": "97228352977595326769620542127093067601527607192",
+          "name": "LesterL",
+          "class": "Shadower",
+          "level": 123,
+          "price": 888887.0,
+          "median": 7999999.0,
+          "discount_pct": 88.9
+        },
+        {
+          "token_id": "1348080694358157671177447871789171909238350626431",
+          "name": "zLiam",
+          "class": "Shadower",
+          "level": 153,
+          "price": 1800000.0,
+          "median": 7999999.0,
+          "discount_pct": 77.5
+        },
+        {
+          "token_id": "447702513223250050110468287452008093207167690766",
+          "name": "Faltra",
+          "class": "Buccaneer",
+          "level": 101,
+          "price": 450000.0,
+          "median": 1600000.0,
+          "discount_pct": 71.9
+        },
+        {
+          "token_id": "447702513223250050110468287452008093207167690766",
+          "name": "Faltra",
+          "class": "Buccaneer",
+          "level": 101,
+          "price": 450000.0,
+          "median": 1600000.0,
+          "discount_pct": 71.9
+        },
+        {
+          "token_id": "447702513223250050110468287452008093207167690766",
+          "name": "Faltra",
+          "class": "Buccaneer",
+          "level": 101,
+          "price": 450000.0,
+          "median": 1600000.0,
+          "discount_pct": 71.9
+        },
+        {
+          "token_id": "447702513223250050110468287452008093207167690766",
+          "name": "Faltra",
+          "class": "Buccaneer",
+          "level": 101,
+          "price": 450000.0,
+          "median": 1600000.0,
+          "discount_pct": 71.9
+        },
+        {
+          "token_id": "447702513223250050110468287452008093207167690766",
+          "name": "Faltra",
+          "class": "Buccaneer",
+          "level": 101,
+          "price": 450000.0,
+          "median": 1600000.0,
+          "discount_pct": 71.9
+        },
+        {
+          "token_id": "982173008113668279927240919251488610693281605192",
+          "name": "MixDoCapeta",
+          "class": "Bishop",
+          "level": 144,
+          "price": 1000000.0,
+          "median": 35000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "982173008113668279927240919251488610693281605192",
+          "name": "MixDoCapeta",
+          "class": "Bishop",
+          "level": 144,
+          "price": 1000000.0,
+          "median": 35000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "982173008113668279927240919251488610693281605192",
+          "name": "MixDoCapeta",
+          "class": "Bishop",
+          "level": 144,
+          "price": 1000000.0,
+          "median": 35000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "982173008113668279927240919251488610693281605192",
+          "name": "MixDoCapeta",
+          "class": "Bishop",
+          "level": 144,
+          "price": 1000000.0,
+          "median": 35000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "982173008113668279927240919251488610693281605192",
+          "name": "MixDoCapeta",
+          "class": "Bishop",
+          "level": 144,
+          "price": 1000000.0,
+          "median": 35000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "298091942026490592855401885628560638060139748416",
+          "name": "Ajavgq",
+          "class": "Aran",
+          "level": 165,
+          "price": 1499999.0,
+          "median": 19990000.0,
+          "discount_pct": 92.5
+        },
+        {
+          "token_id": "497416786245553193393699049737453035338453498129",
+          "name": "CalvinLeona",
+          "class": "Aran",
+          "level": 85,
+          "price": 365000.00000000006,
+          "median": 19990000.0,
+          "discount_pct": 98.2
+        },
+        {
+          "token_id": "298091942026490592855401885628560638060139748416",
+          "name": "Ajavgq",
+          "class": "Aran",
+          "level": 165,
+          "price": 1499999.0,
+          "median": 19990000.0,
+          "discount_pct": 92.5
+        },
+        {
+          "token_id": "497416786245553193393699049737453035338453498129",
+          "name": "CalvinLeona",
+          "class": "Aran",
+          "level": 85,
+          "price": 365000.00000000006,
+          "median": 19990000.0,
+          "discount_pct": 98.2
+        },
+        {
+          "token_id": "298091942026490592855401885628560638060139748416",
+          "name": "Ajavgq",
+          "class": "Aran",
+          "level": 165,
+          "price": 1499999.0,
+          "median": 19990000.0,
+          "discount_pct": 92.5
+        },
+        {
+          "token_id": "497416786245553193393699049737453035338453498129",
+          "name": "CalvinLeona",
+          "class": "Aran",
+          "level": 85,
+          "price": 365000.00000000006,
+          "median": 19990000.0,
+          "discount_pct": 98.2
+        },
+        {
+          "token_id": "298091942026490592855401885628560638060139748416",
+          "name": "Ajavgq",
+          "class": "Aran",
+          "level": 165,
+          "price": 1499999.0,
+          "median": 19990000.0,
+          "discount_pct": 92.5
+        },
+        {
+          "token_id": "497416786245553193393699049737453035338453498129",
+          "name": "CalvinLeona",
+          "class": "Aran",
+          "level": 85,
+          "price": 365000.00000000006,
+          "median": 19990000.0,
+          "discount_pct": 98.2
+        },
+        {
+          "token_id": "298091942026490592855401885628560638060139748416",
+          "name": "Ajavgq",
+          "class": "Aran",
+          "level": 165,
+          "price": 1499999.0,
+          "median": 19990000.0,
+          "discount_pct": 92.5
+        },
+        {
+          "token_id": "497416786245553193393699049737453035338453498129",
+          "name": "CalvinLeona",
+          "class": "Aran",
+          "level": 85,
+          "price": 365000.00000000006,
+          "median": 19990000.0,
+          "discount_pct": 98.2
+        },
+        {
+          "token_id": "682288476353961049580503834525933095177078197076",
+          "name": "KiLihui",
+          "class": "Paladin",
+          "level": 115,
+          "price": 554096.0,
+          "median": 40000000.0,
+          "discount_pct": 98.6
+        },
+        {
+          "token_id": "682288476353961049580503834525933095177078197076",
+          "name": "KiLihui",
+          "class": "Paladin",
+          "level": 115,
+          "price": 554096.0,
+          "median": 40000000.0,
+          "discount_pct": 98.6
+        },
+        {
+          "token_id": "682288476353961049580503834525933095177078197076",
+          "name": "KiLihui",
+          "class": "Paladin",
+          "level": 115,
+          "price": 554096.0,
+          "median": 40000000.0,
+          "discount_pct": 98.6
+        },
+        {
+          "token_id": "682288476353961049580503834525933095177078197076",
+          "name": "KiLihui",
+          "class": "Paladin",
+          "level": 115,
+          "price": 554096.0,
+          "median": 40000000.0,
+          "discount_pct": 98.6
+        },
+        {
+          "token_id": "682288476353961049580503834525933095177078197076",
+          "name": "KiLihui",
+          "class": "Paladin",
+          "level": 115,
+          "price": 554096.0,
+          "median": 40000000.0,
+          "discount_pct": 98.6
+        },
+        {
+          "token_id": "1290722349424251136418006932751172797985483910954",
+          "name": "HHHHinata",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 183,
+          "price": 2800000.0,
+          "median": 39000000.0,
+          "discount_pct": 92.8
+        },
+        {
+          "token_id": "1227700223208655251362604823810178256480926751310",
+          "name": "GGxxAA",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 201,
+          "price": 5100000.0,
+          "median": 39000000.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1290722349424251136418006932751172797985483910954",
+          "name": "HHHHinata",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 183,
+          "price": 2800000.0,
+          "median": 39000000.0,
+          "discount_pct": 92.8
+        },
+        {
+          "token_id": "1227700223208655251362604823810178256480926751310",
+          "name": "GGxxAA",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 201,
+          "price": 5100000.0,
+          "median": 39000000.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1290722349424251136418006932751172797985483910954",
+          "name": "HHHHinata",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 183,
+          "price": 2800000.0,
+          "median": 39000000.0,
+          "discount_pct": 92.8
+        },
+        {
+          "token_id": "1227700223208655251362604823810178256480926751310",
+          "name": "GGxxAA",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 201,
+          "price": 5100000.0,
+          "median": 39000000.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1290722349424251136418006932751172797985483910954",
+          "name": "HHHHinata",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 183,
+          "price": 2800000.0,
+          "median": 39000000.0,
+          "discount_pct": 92.8
+        },
+        {
+          "token_id": "1227700223208655251362604823810178256480926751310",
+          "name": "GGxxAA",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 201,
+          "price": 5100000.0,
+          "median": 39000000.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1290722349424251136418006932751172797985483910954",
+          "name": "HHHHinata",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 183,
+          "price": 2800000.0,
+          "median": 39000000.0,
+          "discount_pct": 92.8
+        },
+        {
+          "token_id": "1227700223208655251362604823810178256480926751310",
+          "name": "GGxxAA",
+          "class": "Ice/Lightning Arch Mage",
+          "level": 201,
+          "price": 5100000.0,
+          "median": 39000000.0,
+          "discount_pct": 86.9
+        },
+        {
+          "token_id": "1284136585458265846977010810518351348510832343139",
+          "name": "RochaPenny",
+          "class": "Night Lord",
+          "level": 120,
+          "price": 396000.0,
+          "median": 11888888.0,
+          "discount_pct": 96.7
+        },
+        {
+          "token_id": "1284136585458265846977010810518351348510832343139",
+          "name": "RochaPenny",
+          "class": "Night Lord",
+          "level": 120,
+          "price": 396000.0,
+          "median": 11888888.0,
+          "discount_pct": 96.7
+        },
+        {
+          "token_id": "1284136585458265846977010810518351348510832343139",
+          "name": "RochaPenny",
+          "class": "Night Lord",
+          "level": 120,
+          "price": 396000.0,
+          "median": 11888888.0,
+          "discount_pct": 96.7
+        },
+        {
+          "token_id": "1284136585458265846977010810518351348510832343139",
+          "name": "RochaPenny",
+          "class": "Night Lord",
+          "level": 120,
+          "price": 396000.0,
+          "median": 11888888.0,
+          "discount_pct": 96.7
+        },
+        {
+          "token_id": "1284136585458265846977010810518351348510832343139",
+          "name": "RochaPenny",
+          "class": "Night Lord",
+          "level": 120,
+          "price": 396000.0,
+          "median": 11888888.0,
+          "discount_pct": 96.7
+        },
+        {
+          "token_id": "1265330320954467822180895581780924244154061805636",
+          "name": "puput",
+          "class": "Wind Archer",
+          "level": 170,
+          "price": 5999998.999999999,
+          "median": 25000000.0,
+          "discount_pct": 76.0
+        },
+        {
+          "token_id": "156004675438227196089631371325858148443400993542",
+          "name": "Tinkle",
+          "class": "Wind Archer",
+          "level": 140,
+          "price": 2400000.0,
+          "median": 25000000.0,
+          "discount_pct": 90.4
+        },
+        {
+          "token_id": "1265330320954467822180895581780924244154061805636",
+          "name": "puput",
+          "class": "Wind Archer",
+          "level": 170,
+          "price": 5999998.999999999,
+          "median": 25000000.0,
+          "discount_pct": 76.0
+        },
+        {
+          "token_id": "156004675438227196089631371325858148443400993542",
+          "name": "Tinkle",
+          "class": "Wind Archer",
+          "level": 140,
+          "price": 2400000.0,
+          "median": 25000000.0,
+          "discount_pct": 90.4
+        },
+        {
+          "token_id": "1265330320954467822180895581780924244154061805636",
+          "name": "puput",
+          "class": "Wind Archer",
+          "level": 170,
+          "price": 5999998.999999999,
+          "median": 25000000.0,
+          "discount_pct": 76.0
+        },
+        {
+          "token_id": "156004675438227196089631371325858148443400993542",
+          "name": "Tinkle",
+          "class": "Wind Archer",
+          "level": 140,
+          "price": 2400000.0,
+          "median": 25000000.0,
+          "discount_pct": 90.4
+        },
+        {
+          "token_id": "1265330320954467822180895581780924244154061805636",
+          "name": "puput",
+          "class": "Wind Archer",
+          "level": 170,
+          "price": 5999998.999999999,
+          "median": 25000000.0,
+          "discount_pct": 76.0
+        },
+        {
+          "token_id": "156004675438227196089631371325858148443400993542",
+          "name": "Tinkle",
+          "class": "Wind Archer",
+          "level": 140,
+          "price": 2400000.0,
+          "median": 25000000.0,
+          "discount_pct": 90.4
+        },
+        {
+          "token_id": "1265330320954467822180895581780924244154061805636",
+          "name": "puput",
+          "class": "Wind Archer",
+          "level": 170,
+          "price": 5999998.999999999,
+          "median": 25000000.0,
+          "discount_pct": 76.0
+        },
+        {
+          "token_id": "156004675438227196089631371325858148443400993542",
+          "name": "Tinkle",
+          "class": "Wind Archer",
+          "level": 140,
+          "price": 2400000.0,
+          "median": 25000000.0,
+          "discount_pct": 90.4
+        },
+        {
+          "token_id": "963360353820491042546861644270988734880822522767",
+          "name": "NinalLily",
+          "class": "Marksman",
+          "level": 122,
+          "price": 345678.0,
+          "median": 12000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "627650865780841111595049810252054071902021941827",
+          "name": "Vexorith",
+          "class": "Marksman",
+          "level": 159,
+          "price": 700000.0,
+          "median": 12000000.0,
+          "discount_pct": 94.2
+        },
+        {
+          "token_id": "32526917733531585351013566106691990940935347056",
+          "name": "Delightful",
+          "class": "Marksman",
+          "level": 120,
+          "price": 380000.0,
+          "median": 12000000.0,
+          "discount_pct": 96.8
+        },
+        {
+          "token_id": "963360353820491042546861644270988734880822522767",
+          "name": "NinalLily",
+          "class": "Marksman",
+          "level": 122,
+          "price": 345678.0,
+          "median": 12000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "627650865780841111595049810252054071902021941827",
+          "name": "Vexorith",
+          "class": "Marksman",
+          "level": 159,
+          "price": 700000.0,
+          "median": 12000000.0,
+          "discount_pct": 94.2
+        },
+        {
+          "token_id": "32526917733531585351013566106691990940935347056",
+          "name": "Delightful",
+          "class": "Marksman",
+          "level": 120,
+          "price": 380000.0,
+          "median": 12000000.0,
+          "discount_pct": 96.8
+        },
+        {
+          "token_id": "963360353820491042546861644270988734880822522767",
+          "name": "NinalLily",
+          "class": "Marksman",
+          "level": 122,
+          "price": 345678.0,
+          "median": 12000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "627650865780841111595049810252054071902021941827",
+          "name": "Vexorith",
+          "class": "Marksman",
+          "level": 159,
+          "price": 700000.0,
+          "median": 12000000.0,
+          "discount_pct": 94.2
+        },
+        {
+          "token_id": "32526917733531585351013566106691990940935347056",
+          "name": "Delightful",
+          "class": "Marksman",
+          "level": 120,
+          "price": 380000.0,
+          "median": 12000000.0,
+          "discount_pct": 96.8
+        },
+        {
+          "token_id": "963360353820491042546861644270988734880822522767",
+          "name": "NinalLily",
+          "class": "Marksman",
+          "level": 122,
+          "price": 345678.0,
+          "median": 12000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "627650865780841111595049810252054071902021941827",
+          "name": "Vexorith",
+          "class": "Marksman",
+          "level": 159,
+          "price": 700000.0,
+          "median": 12000000.0,
+          "discount_pct": 94.2
+        },
+        {
+          "token_id": "32526917733531585351013566106691990940935347056",
+          "name": "Delightful",
+          "class": "Marksman",
+          "level": 120,
+          "price": 380000.0,
+          "median": 12000000.0,
+          "discount_pct": 96.8
+        },
+        {
+          "token_id": "963360353820491042546861644270988734880822522767",
+          "name": "NinalLily",
+          "class": "Marksman",
+          "level": 122,
+          "price": 345678.0,
+          "median": 12000000.0,
+          "discount_pct": 97.1
+        },
+        {
+          "token_id": "627650865780841111595049810252054071902021941827",
+          "name": "Vexorith",
+          "class": "Marksman",
+          "level": 159,
+          "price": 700000.0,
+          "median": 12000000.0,
+          "discount_pct": 94.2
+        },
+        {
+          "token_id": "32526917733531585351013566106691990940935347056",
+          "name": "Delightful",
+          "class": "Marksman",
+          "level": 120,
+          "price": 380000.0,
+          "median": 12000000.0,
+          "discount_pct": 96.8
+        },
+        {
+          "token_id": "844905399453895529349862669641165657651236307523",
+          "name": "Flexxen2",
+          "class": "Phantom",
+          "level": 140,
+          "price": 1480000.0,
+          "median": 6999999.0,
+          "discount_pct": 78.9
+        },
+        {
+          "token_id": "844905399453895529349862669641165657651236307523",
+          "name": "Flexxen2",
+          "class": "Phantom",
+          "level": 140,
+          "price": 1480000.0,
+          "median": 6999999.0,
+          "discount_pct": 78.9
+        },
+        {
+          "token_id": "844905399453895529349862669641165657651236307523",
+          "name": "Flexxen2",
+          "class": "Phantom",
+          "level": 140,
+          "price": 1480000.0,
+          "median": 6999999.0,
+          "discount_pct": 78.9
+        },
+        {
+          "token_id": "844905399453895529349862669641165657651236307523",
+          "name": "Flexxen2",
+          "class": "Phantom",
+          "level": 140,
+          "price": 1480000.0,
+          "median": 6999999.0,
+          "discount_pct": 78.9
+        },
+        {
+          "token_id": "844905399453895529349862669641165657651236307523",
+          "name": "Flexxen2",
+          "class": "Phantom",
+          "level": 140,
+          "price": 1480000.0,
+          "median": 6999999.0,
+          "discount_pct": 78.9
+        }
+      ],
+      "overpriced_chars": []
+    },
+    "market_health": {
+      "items": {
+        "count": 675,
+        "avg": 2120744.21,
+        "median": 220999.0,
+        "floor": 1999.0,
+        "ceiling": 85000000.0,
+        "std_dev": 9181852.21,
+        "cv": 433.0
+      },
+      "characters": {
+        "count": 675,
+        "avg": 13315395.96,
+        "median": 1322221.0,
+        "floor": 140117.0,
+        "ceiling": 299999999.0,
+        "std_dev": 38093731.24,
+        "cv": 286.1
+      },
+      "unique_item_types": 119,
+      "active_item_types": 119,
+      "single_listing_types": 0,
+      "liquidity_score": 100.0
+    },
+    "scanned_items": 675,
+    "scanned_characters": 675,
+    "scan_timestamp": "2026-04-06T10:27:00.097827+00:00"
+  },
+  "alerts": []
+}
