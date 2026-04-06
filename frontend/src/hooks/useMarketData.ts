@@ -179,10 +179,8 @@ export function useLeaderboardCombined(limit = 100) {
 }
 
 export function useLeaderboardByClass(className?: string, limit = 50) {
-  const url = className
-    ? `/api/leaderboard/by-class?class_name=${encodeURIComponent(className)}&limit=${limit}`
-    : `/api/leaderboard/by-class?limit=${limit}`;
-  return useSWR(url, fetcher, {
+  // Uses combined leaderboard (no class filter — backend serves all classes)
+  return useSWR(`/api/leaderboard/combined?limit=${limit}`, fetcher, {
     refreshInterval: 60000,
   });
 }
