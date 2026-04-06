@@ -544,18 +544,26 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
             image_url = char_data.get("imageUrl", "")
             asset_key = char_data.get("assetKey", "")
 
-            # AP Stats para CP calculation
+            # AP Stats para CP calculation — use engine's full extraction
             ap_stat = char_data.get("apStat", {})
-            from services.combat_power_engine import CombatPowerEngine, _get_stat_total
+            from services.combat_power_engine import (
+                CombatPowerEngine,
+                _get_stat_total,
+                _get_stat_base,
+            )
+
+            # Extract stats properly based on job name
+            char_stats = CombatPowerEngine.extract_stats_from_character(ap_stat, job_name)
+            cd_base = _get_stat_base(ap_stat, "critical_damage", "criticalDamage")
 
             cp_val = CombatPowerEngine.calculate_cp(
-                primary_stat=_get_stat_total(ap_stat, "str"),
-                secondary_stat=_get_stat_total(ap_stat, "dex"),
-                total_att=max(_get_stat_total(ap_stat, "pad"), _get_stat_total(ap_stat, "attackPower"), _get_stat_total(ap_stat, "mad")),
-                damage_pct=_get_stat_total(ap_stat, "damage"),
-                boss_damage_pct=_get_stat_total(ap_stat, "boss_monster_damage"),
-                crit_damage_pct=_get_stat_total(ap_stat, "critical_damage"),
-                crit_damage_base=0.0,
+                primary_stat=char_stats["primary_stat"],
+                secondary_stat=char_stats["secondary_stat"],
+                total_att=char_stats.get("total_att", 0),
+                damage_pct=char_stats.get("damage_pct", 0),
+                boss_damage_pct=char_stats.get("boss_damage_pct", 0),
+                crit_damage_pct=char_stats.get("crit_damage_pct", 0),
+                crit_damage_base=cd_base,
             )
 
             # Hyper stats
