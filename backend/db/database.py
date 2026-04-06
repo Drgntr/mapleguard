@@ -153,12 +153,26 @@ def _resolve_db_url() -> str:
     url = get_settings().DATABASE_URL
     if not url:
         return "sqlite+aiosqlite:///./mapleguard.db"
+    # Convert postgresql:// to postgresql+asyncpg://
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
     return url
 
 
-engine = create_async_engine(_resolve_db_url(), echo=False)
+# Create engine with SSL support for PostgreSQL
+def _create_engine():
+    from sqlalchemy.ext.asyncio import create_async_engine
+    url = _resolve_db_url()
+    if url.startswith("postgresql"):
+        return create_async_engine(
+            url,
+            echo=False,
+            connect_args={"ssl": "prefer"},
+        )
+    return create_async_engine(url, echo=False)
+
+
+engine = _create_engine()
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
