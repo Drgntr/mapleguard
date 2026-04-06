@@ -13,13 +13,14 @@ import httpx
 import json
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Set
 
 try:
-    from sqlalchemy import select, func
+    from sqlalchemy import select, func, distinct
 except ImportError:
     select = None
     func = None
+    distinct = None
 
 from services.combat_power_engine import _get_stat_total
 
@@ -295,7 +296,7 @@ async def run_mint_watcher(nft_type: str, poll_interval: int = 10):
             await asyncio.sleep(poll_interval)
 
 
-# ── 3. POPULATE: Navigator enrichment ──────────────────────────────────────
+# ── 3. Token metadata & Navigator enrichment ───────────────────────────────
 
 async def _token_uri_metadata(token_id: str) -> Optional[str]:
     """Fetch character name from on-chain tokenURI."""
@@ -357,6 +358,10 @@ async def _search_asset_key(char_name: str, nav_client: httpx.AsyncClient) -> Op
     return None
 
 
+# Set of permanently unenrichable token IDs (not in Navigator, bad URI, etc)
+_unenrichable: Set[str] = set()
+
+
 async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.AsyncClient) -> bool:
     """
     Pipeline: tokenURI → name → search → assetKey → detail
@@ -388,7 +393,11 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
 
             # Step 3: Detail
             url = f"https://msu.io/navigator/api/navigator/characters/{asset_key}/info"
-            resp = await nav_client.get(url, headers=NAV_HEADERS)
+            headers = {
+                **NAV_HEADERS,
+                "referer": f"https://msu.io/navigator/character/{asset_key}",
+            }
+            resp = await nav_client.get(url, headers=headers)
 
             if resp.status_code == 429:
                 await asyncio.sleep(backoffs[min(attempt, len(backoffs)-1)])
@@ -399,6 +408,7 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
 
             char_data = resp.json().get("character", {})
             if not char_data:
+                print(f"  {prefix} No character data in response")
                 return False
 
             common = char_data.get("common", {})
@@ -417,12 +427,17 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
             asset_key_resp = char_data.get("assetKey", "")
 
             # CP — from apStat.attackPower (string like "7022811")
-            ap_stat = char_data.get("apStat", {})
-            cp_val = ap_stat.get("attackPower", 0)
+            ap_stat = char_data.get("apStat") or {}
+            cp_val = ap_stat.get("attackPower", 0) if ap_stat else 0
             try:
                 cp_val = int(cp_val) if cp_val else 0
             except (ValueError, TypeError):
                 cp_val = 0
+
+            if cp_val == 0:
+                ap_keys = list(ap_stat.keys()) if ap_stat else "MISSING"
+                print(f"  {prefix} SKIP — apStat.attackPower=0, keys: {ap_keys}")
+                return False
 
             hyper_stat = char_data.get("hyperStat", {})
             wearing = char_data.get("wearing", {})
@@ -481,6 +496,8 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
                 await asyncio.sleep(backoffs[attempt])
             else:
                 print(f"  [Populate ERR] {token_id} after {max_retries} retries")
+                # Mark max retries so we don't keep retrying
+                _unenrichable.add(token_id)
                 try:
                     async with async_session() as session:
                         from db.database import MintEvent
@@ -497,10 +514,14 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
 
 
 async def run_populate(nft_type: str, batch_size: int = 10):
-    """Continuous enrichment — shared httpx client, higher concurrency."""
+    """Continuous enrichment — shared httpx client, high concurrency.
+
+    Only processes tokens that have no snapshot at all OR have CP > 0.
+    Characters without CP data are skipped and never retried.
+    """
     await _ensure_db_tables()
 
-    from db.database import NftMintLookup, async_session
+    from db.database import NftMintLookup, async_session, CharacterSnapshot
     from config import get_settings
     from services.proxy_pool import proxy_pool
     proxy_pool.load()
@@ -512,24 +533,43 @@ async def run_populate(nft_type: str, batch_size: int = 10):
     prefix = f"[Populate-{nft_type}]"
     print(f"{prefix} Starting (batch_size={batch_size})...")
 
-    async with httpx.AsyncClient(timeout=30.0, verify=False, headers=NAV_HEADERS) as nav_client:
+    async with httpx.AsyncClient(timeout=30.0, verify=False) as nav_client:
+        # Cleanup: remove CP=0 dummy snapshots and reset their enriched flags
+        from sqlalchemy import text
+        try:
+            async with async_session() as session:
+                from db.database import CharacterSnapshot
+                zero_cp = (await session.execute(
+                    select(CharacterSnapshot.token_id).where(CharacterSnapshot.combat_power == 0)
+                )).scalars().all()
+                if zero_cp:
+                    await session.execute(text("DELETE FROM character_snapshots WHERE combat_power = 0"))
+                    await session.commit()
+                    await session.execute(text("UPDATE mint_events SET enriched = false, retry_count = 0"))
+                    await session.commit()
+                    print(f"[Populate] Cleaned up {len(zero_cp)} CP=0 dummy snapshots, reset enriched flags")
+        except Exception as e:
+            print(f"[Populate] Cleanup warning: {e}")
+
         while True:
             try:
-                # Find unenriched tokens
+                # Get all minted tokens
                 async with async_session() as session:
-                    from db.database import CharacterSnapshot
                     mint_q = select(NftMintLookup.token_id).where(NftMintLookup.nft_type == nft_type)
-                    all_tokens = set((r[0] for r in (await session.execute(mint_q)).all()))
+                    all_tokens: Set[str] = set((r[0] for r in (await session.execute(mint_q)).all()))
 
-                    enriched_q = select(CharacterSnapshot.token_id).where(CharacterSnapshot.combat_power > 0)
-                    enriched_set = set((r[0] for r in (await session.execute(enriched_q)).all()))
+                    # Tokens that already have a snapshot with CP > 0
+                    snapshot_q = select(CharacterSnapshot.token_id).where(CharacterSnapshot.combat_power > 0)
+                    have_snapshot: Set[str] = set((r[0] for r in (await session.execute(snapshot_q)).all()))
 
-                pending = [t for t in all_tokens if t not in enriched_set]
+                # Skip: already enriched (CP > 0) or permanently unenrichable
+                pending = all_tokens - have_snapshot - _unenrichable
+
                 if not pending:
                     await asyncio.sleep(30)
                     continue
 
-                print(f"{prefix} {len(pending)} characters pending enrichment...")
+                print(f"{prefix} {len(pending)} new characters to enrich...")
 
                 sem = asyncio.Semaphore(10)
 
@@ -537,15 +577,17 @@ async def run_populate(nft_type: str, batch_size: int = 10):
                     async with sem:
                         return await _populate_from_navigator(tid, settings, nav_client)
 
-                batch = pending[:batch_size]
+                batch = list(pending)[:batch_size]
                 results = await asyncio.gather(*[populate_one(tid) for tid in batch], return_exceptions=True)
 
                 ok = sum(1 for r in results if r is True)
                 skipped = sum(1 for r in results if r is False)
                 errs = sum(1 for r in results if isinstance(r, Exception))
+                done = ok + skipped  # False means permanently unenrichable, add to skip set
+
                 print(f"{prefix} Batch: {ok} enriched, {skipped} skipped, {errs} errors")
 
-                await asyncio.sleep(1)
+                await asyncio.sleep(2)
 
             except asyncio.CancelledError:
                 break
