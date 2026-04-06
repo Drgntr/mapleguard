@@ -10,8 +10,7 @@ COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
-RUN chmod +x entrypoint.sh
 
 EXPOSE 8000
 
-CMD ["/bin/sh", "-c", "/app/entrypoint.sh"]
+CMD ["sh", "-c", "python -m uvicorn main:app --host 0.0.0.0 --port $PORT --proxy-headers"]
