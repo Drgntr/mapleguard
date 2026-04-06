@@ -354,14 +354,14 @@ async def run_populate(nft_type: str, batch_size: int = 5):
 
     while True:
         try:
-            # Find unenriched tokens
+            # Find unenriched and zero-CP tokens
             async with async_session() as session:
+                from db.database import CharacterSnapshot
                 mint_q = select(NftMintLookup.token_id).where(NftMintLookup.nft_type == nft_type)
                 all_tokens = set((r[0] for r in (await session.execute(mint_q)).all()))
 
-                # Import dynamically to avoid circular import
-                from db.database import CharacterSnapshot
-                enriched_q = select(CharacterSnapshot.token_id)
+                # Characters that have a snapshot with CP > 0 are considered enriched
+                enriched_q = select(CharacterSnapshot.token_id).where(CharacterSnapshot.combat_power > 0)
                 enriched_set = set((r[0] for r in (await session.execute(enriched_q)).all()))
 
             pending = [t for t in all_tokens if t not in enriched_set]
