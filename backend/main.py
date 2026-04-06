@@ -9,7 +9,8 @@ from routes import items, characters, market, calculator, leaderboard
 from services.market_data import market_data_service
 
 # ── Optional long-running services ───────────────────────────────────
-_enable_services = os.environ.get("ENABLE_SERVICES", "true").lower() == "true"
+# Disabled by default — enable via ENABLE_SERVICES=true env var
+_enable_services = os.environ.get("ENABLE_SERVICES", "false").lower() == "true"
 
 if _enable_services:
     from services.sentinel_live import live_sentinel
