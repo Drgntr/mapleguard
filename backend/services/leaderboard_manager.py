@@ -423,14 +423,14 @@ async def _token_uri_metadata(token_id: str) -> Optional[str]:
             if not result or result == "0x":
                 return None
 
-            # Decode ABI string response (offset + length + data)
+            # Decode ABI string response (offset → null-terminated data)
             data = result[2:]  # remove 0x
-            offset = int(data[:64], 16) * 2  # offset in hex chars (32 bytes = 64 hex)
-            length = int(data[64 + offset:64 + offset + 64], 16)
-            str_data = data[64 + offset + 64: 64 + offset + 64 + length * 2]
-            raw_bytes = bytes.fromhex(str_data)
-            # Strip null bytes from ABI padding
-            uri = raw_bytes.rstrip(b"\x00").decode("utf-8", errors="replace").strip()
+            offset_bytes = int(data[:64], 16)  # byte offset to string data
+            str_start_hex = 64 + offset_bytes * 2  # convert to hex char position
+            raw_bytes = bytes.fromhex(data[str_start_hex:])
+            # Find first null byte (ABI strings are null-terminated, not length-prefixed)
+            null_idx = raw_bytes.index(b"\x00") if b"\x00" in raw_bytes else len(raw_bytes)
+            uri = raw_bytes[:null_idx].decode("utf-8").strip()
 
             # Debug: log decoded URI to understand failures
             print(f"  [Metadata DBG] {token_id}: {uri[:140]}")
