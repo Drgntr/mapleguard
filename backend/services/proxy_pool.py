@@ -31,6 +31,10 @@ class ProxyPool:
         self._index = 0
         self._loaded = False
 
+    def _clean(self, s: str) -> str:
+        """Remove all non-printable chars from a string."""
+        return "".join(c for c in s if c.isprintable())
+
     def load(self):
         """Load proxies from env, Webshare file, or config file."""
         if self._loaded:
@@ -39,7 +43,7 @@ class ProxyPool:
         # 1. Try env var first (comma-separated full URLs)
         proxy_list = os.environ.get("PROXY_LIST", "").strip()
         if proxy_list:
-            urls = [u.strip() for u in proxy_list.split(",") if u.strip()]
+            urls = [self._clean(u.strip()) for u in proxy_list.split(",") if u.strip()]
             self._proxies = [{"url": u, "failures": 0, "cooldown_until": 0} for u in urls]
             self._loaded = True
             print(f"[ProxyPool] Loaded {len(self._proxies)} proxies from PROXY_LIST")
@@ -73,11 +77,11 @@ class ProxyPool:
                     parts = line.split(":")
                     if len(parts) == 4:
                         ip, port, user, pwd = parts
-                        url = f"http://{user}:{pwd}@{ip}:{port}"
+                        url = f"http://{self._clean(user)}:{self._clean(pwd)}@{self._clean(ip)}:{self._clean(port)}"
                         urls.append(url)
                     elif len(parts) == 2:
                         # Just ip:port
-                        url = f"http://{parts[0]}:{parts[1]}"
+                        url = f"http://{self._clean(parts[0])}:{self._clean(parts[1])}"
                         urls.append(url)
                     else:
                         continue
@@ -116,7 +120,7 @@ class ProxyPool:
             self._index += 1
             p = self._proxies[idx]
             if now >= p["cooldown_until"]:
-                return p["url"].strip()
+                return p["url"]
             self._index += 1
 
         return None

@@ -402,8 +402,10 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
     max_retries = 3
     backoffs = [5, 15, 60]
 
-    # Sanitize token_id — prevent \n from Routescan API
-    token_id = token_id.strip().rstrip("\n")
+    # Sanitize token_id — strip whitespace, remove non-printable chars, convert to int-style
+    token_id = token_id.strip()
+    # Remove any non-printable characters (\n, \r, tabs, etc.)
+    token_id = "".join(c for c in token_id if c.isprintable())
 
     for attempt in range(max_retries):
         current_proxy = _pp.get_proxy() if attempt > 0 else _pp.get_proxy()
