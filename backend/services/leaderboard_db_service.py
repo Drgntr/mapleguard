@@ -189,57 +189,71 @@ class LeaderboardDBService:
 
     async def get_stats(self) -> dict:
         """Dashboard-style stats."""
-        async with self._get_session() as session:
-            char_count = (await session.execute(
-                select(func.count(CharacterSnapshot.id))
-            )).scalar() or 0
-            item_count = (await session.execute(
-                select(func.count(ItemSnapshot.id))
-            )).scalar() or 0
-            mint_lookup_count = (await session.execute(
-                select(func.count(NftMintLookup.id))
-            )).scalar() or 0
-            pending_chars = mint_lookup_count - char_count if mint_lookup_count > 0 else 0
+        try:
+            async with self._get_session() as session:
+                char_count = (await session.execute(
+                    select(func.count(CharacterSnapshot.id))
+                )).scalar() or 0
+                item_count = (await session.execute(
+                    select(func.count(ItemSnapshot.id))
+                )).scalar() or 0
+                mint_lookup_count = (await session.execute(
+                    select(func.count(NftMintLookup.id))
+                )).scalar() or 0
+                pending_chars = mint_lookup_count - char_count if mint_lookup_count > 0 else 0
 
-            last_char_block = await self._sync_state_get("scan_characters_last_block", "0")
-            last_item_block = await self._sync_state_get("scan_items_last_block", "0")
-            enrich_char_at = await self._sync_state_get("enrich_characters_last_token", "")
-            enrich_item_at = await self._sync_state_get("enrich_items_last_token", "")
+                last_char_block = await self._sync_state_get("scan_characters_last_block", "0")
+                last_item_block = await self._sync_state_get("scan_items_last_block", "0")
+                enrich_char_at = await self._sync_state_get("enrich_characters_last_token", "")
+                enrich_item_at = await self._sync_state_get("enrich_items_last_token", "")
 
-            # Class distribution
-            class_q = select(CharacterSnapshot.class_name, func.count(CharacterSnapshot.id)).group_by(CharacterSnapshot.class_name)
-            class_rows = (await session.execute(class_q)).all()
-            class_distribution = {row[0]: row[1] for row in class_rows}
+                # Class distribution
+                class_q = select(CharacterSnapshot.class_name, func.count(CharacterSnapshot.id)).group_by(CharacterSnapshot.class_name)
+                class_rows = (await session.execute(class_q)).all()
+                class_distribution = {row[0]: row[1] for row in class_rows}
 
-            # Item category distribution
-            cat_q = select(ItemSnapshot.category_label, func.count(ItemSnapshot.id)).group_by(ItemSnapshot.category_label)
-            cat_rows = (await session.execute(cat_q)).all()
-            category_distribution = {row[0]: row[1] for row in cat_rows}
+                # Item category distribution
+                cat_q = select(ItemSnapshot.category_label, func.count(ItemSnapshot.id)).group_by(ItemSnapshot.category_label)
+                cat_rows = (await session.execute(cat_q)).all()
+                category_distribution = {row[0]: row[1] for row in cat_rows}
 
-            # Unenriched mint events
-            unenriched_mints = (await session.execute(
-                select(func.count(MintEvent.id)).where(MintEvent.enriched == False)
-            )).scalar() or 0
+                # Unenriched mint events
+                unenriched_mints = (await session.execute(
+                    select(func.count(MintEvent.id)).where(MintEvent.enriched == False)
+                )).scalar() or 0
 
+                return {
+                    "characters": {
+                        "total_minted": mint_lookup_count,
+                        "enriched": char_count,
+                        "pending_enrichment": max(pending_chars, 0),
+                        "last_scanned_block": int(last_char_block) if last_char_block.isdigit() else 0,
+                    },
+                    "items": {
+                        "total_minted": mint_lookup_count,
+                        "enriched": item_count,
+                        "last_scanned_block": int(last_item_block) if last_item_block.isdigit() else 0,
+                    },
+                    "class_distribution": dict(sorted(class_distribution.items(), key=lambda x: x[1], reverse=True)[:30]),
+                    "category_distribution": dict(sorted(category_distribution.items(), key=lambda x: x[1], reverse=True)[:30]),
+                    "unenriched_mints": unenriched_mints,
+                    "enrichment_state": {
+                        "last_char_token": enrich_char_at,
+                        "last_item_token": enrich_item_at,
+                    },
+                }
+        except Exception as e:
+            import traceback
+            print(f"[Stats ERROR] {e}")
+            traceback.print_exc()
             return {
-                "characters": {
-                    "total_minted": mint_lookup_count,
-                    "enriched": char_count,
-                    "pending_enrichment": max(pending_chars, 0),
-                    "last_scanned_block": int(last_char_block) if last_char_block.isdigit() else 0,
-                },
-                "items": {
-                    "total_minted": mint_lookup_count,  # rough — nft_type filtering would be better
-                    "enriched": item_count,
-                    "last_scanned_block": int(last_item_block) if last_item_block.isdigit() else 0,
-                },
-                "class_distribution": dict(sorted(class_distribution.items(), key=lambda x: x[1], reverse=True)[:30]),
-                "category_distribution": dict(sorted(category_distribution.items(), key=lambda x: x[1], reverse=True)[:30]),
-                "unenriched_mints": unenriched_mints,
-                "enrichment_state": {
-                    "last_char_token": enrich_char_at,
-                    "last_item_token": enrich_item_at,
-                },
+                "characters": {"total_minted": 0, "enriched": 0, "pending_enrichment": 0, "last_scanned_block": 0},
+                "items": {"total_minted": 0, "enriched": 0, "last_scanned_block": 0},
+                "class_distribution": {},
+                "category_distribution": {},
+                "unenriched_mints": 0,
+                "enrichment_state": {},
+                "error": str(e),
             }
 
     async def get_classes(self) -> list[dict]:

@@ -11,12 +11,13 @@ from services.market_data import market_data_service
 # ── Optional long-running services ───────────────────────────────────
 # Disabled by default — enable via ENABLE_SERVICES=true env var
 _enable_services = os.environ.get("ENABLE_SERVICES", "false").lower() == "true"
+print(f"[START] ENABLE_SERVICES={_enable_services}")
 
 if _enable_services:
     from services.leaderboard_manager import (
-        scan_all_task, enrich_chars_task, enrich_items_task,
-        watch_chars_task, watch_items_task,
+        scan_all_task, enrich_chars_task, watch_chars_task,
     )
+    print("[START] Leaderboard services imported OK")
 
 
 @asynccontextmanager
@@ -27,11 +28,11 @@ async def lifespan(app: FastAPI):
     tasks = []
 
     if _enable_services:
-        # ── Leaderboard Pipeline ─────────────────────────────────────
+        print("[START] Launching leaderboard pipeline...")
         tasks.append(asyncio.create_task(scan_all_task()))
         tasks.append(asyncio.create_task(enrich_chars_task(batch_size=5)))
         tasks.append(asyncio.create_task(watch_chars_task()))
-        # ─────────────────────────────────────────────────────────────
+        print("[START] All leaderboard tasks launched!")
 
     yield
 

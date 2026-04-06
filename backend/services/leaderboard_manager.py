@@ -94,29 +94,32 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
         total_items = 0
         t0 = time.time()
 
-        async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
+        # Create client with proxy in constructor
+        base_proxy = proxy_pool.get_proxy()
+        client_kwargs = {"verify": False, "timeout": 15.0}
+        if base_proxy:
+            client_kwargs["proxy"] = base_proxy
+
+        async with httpx.AsyncClient(**client_kwargs) as client:
             while cursor_url:
                 page_num += 1
                 if limit_pages and page_num > limit_pages:
                     break
 
-                # Try with proxy, fallback without
                 resp = None
-                proxy_url = proxy_pool.get_proxy()
                 success = False
 
                 for attempt in range(3):
                     try:
-                        extra = {"proxy": proxy_url} if (proxy_url and attempt == 0) else {}
-                        resp = await client.get(cursor_url, timeout=15.0, **extra)
+                        resp = await client.get(cursor_url, timeout=15.0)
 
                         if resp.status_code == 429:
-                            if proxy_url and attempt == 0:
-                                proxy_pool.report_failure(proxy_url, cooldown=60)
+                            if base_proxy:
+                                proxy_pool.report_failure(base_proxy, cooldown=60)
                             wait = 10 * (attempt + 1)
                             print(f"{prefix} Rate limited — waiting {wait}s")
                             await asyncio.sleep(wait)
-                            proxy_url = proxy_pool.get_proxy()
+                            base_proxy = proxy_pool.get_proxy()
                             page_num -= 1
                             continue
 
@@ -125,8 +128,8 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                             cursor_url = ""
                             break
 
-                        if proxy_url and attempt == 0:
-                            proxy_pool.report_success(proxy_url)
+                        if base_proxy:
+                            proxy_pool.report_success(base_proxy)
                         success = True
                         break
 
@@ -134,9 +137,9 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                         raise
                     except Exception as e:
                         print(f"{prefix} Request error (attempt {attempt+1}/3): {e}")
-                        if proxy_url and attempt == 0:
-                            proxy_pool.report_failure(proxy_url, cooldown=30)
-                        proxy_url = proxy_pool.get_proxy()
+                        if base_proxy:
+                            proxy_pool.report_failure(base_proxy, cooldown=30)
+                        base_proxy = proxy_pool.get_proxy()
                         await asyncio.sleep(5)
 
                 if not cursor_url or not success:
@@ -336,23 +339,19 @@ async def run_populate(nft_type: str, batch_size: int = 5):
 
             print(f"{prefix} {len(pending)} characters pending enrichment...")
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                sem = asyncio.Semaphore(3)
+            sem = asyncio.Semaphore(3)
 
-                async def populate_one(token_id: str):
-                    async with sem:
-                        proxy_url = proxy_pool.get_proxy()
-                        return await _populate_from_navigator(
-                            client, token_id, settings, proxy_url, proxy_pool
-                        )
+            async def populate_one(token_id: str):
+                async with sem:
+                    return await _populate_from_navigator(token_id, settings)
 
-                batch = pending[:batch_size]
-                results = await asyncio.gather(*[populate_one(tid) for tid in batch], return_exceptions=True)
+            batch = pending[:batch_size]
+            results = await asyncio.gather(*[populate_one(tid) for tid in batch], return_exceptions=True)
 
-                ok = sum(1 for r in results if r is True)
-                skipped = sum(1 for r in results if r is False)
-                errs = sum(1 for r in results if isinstance(r, Exception))
-                print(f"{prefix} Batch done: {ok} enriched, {skipped} skipped, {errs} errors | Proxies: {proxy_pool.status()}")
+            ok = sum(1 for r in results if r is True)
+            skipped = sum(1 for r in results if r is False)
+            errs = sum(1 for r in results if isinstance(r, Exception))
+            print(f"{prefix} Batch done: {ok} enriched, {skipped} skipped, {errs} errors | Proxies: {proxy_pool.status()}")
 
             await asyncio.sleep(5)
 
@@ -364,17 +363,20 @@ async def run_populate(nft_type: str, batch_size: int = 5):
             await asyncio.sleep(30)
 
 
-async def _populate_from_navigator(client, token_id: str, settings, proxy_url=None, proxy_pool=None) -> bool:
+async def _populate_from_navigator(token_id: str, settings) -> bool:
     """
     Busca personagem no Navigator API: /navigator/characters/{tokenId}/info
-    Usa proxy para evitar rate-limit. Faz retry com proxy diferente.
+    Usa proxy pool para evitar rate-limit. Cria novo client por tentativa para permitir troca de proxy.
     """
+    from services.proxy_pool import proxy_pool as _pp
     max_retries = 3
     backoffs = [5, 15, 60]
 
     for attempt in range(max_retries):
-        current_proxy = proxy_url if attempt == 0 else (proxy_pool.get_proxy() if proxy_pool else None)
-        extra = {"proxy": current_proxy} if current_proxy else {}
+        current_proxy = _pp.get_proxy() if attempt > 0 else _pp.get_proxy()
+        client_kwargs = {"timeout": 30.0}
+        if current_proxy:
+            client_kwargs["proxy"] = current_proxy
 
         try:
             url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
@@ -385,22 +387,23 @@ async def _populate_from_navigator(client, token_id: str, settings, proxy_url=No
                 "referer": f"https://msu.io/navigator/character/{token_id}",
             }
 
-            resp = await client.get(url, headers=headers, timeout=30, **extra)
+            async with httpx.AsyncClient(**client_kwargs) as client:
+                resp = await client.get(url, headers=headers, timeout=30)
 
             if resp.status_code == 429:
-                if current_proxy and proxy_pool:
-                    proxy_pool.report_failure(current_proxy, cooldown=30)
+                if current_proxy:
+                    _pp.report_failure(current_proxy, cooldown=30)
                 await asyncio.sleep(backoffs[min(attempt, len(backoffs)-1)])
                 continue
 
             if resp.status_code != 200:
-                if current_proxy and proxy_pool:
-                    proxy_pool.report_failure(current_proxy)
+                if current_proxy:
+                    _pp.report_failure(current_proxy)
                 await asyncio.sleep(backoffs[min(attempt, len(backoffs)-1)])
                 continue
 
-            if current_proxy and proxy_pool:
-                proxy_pool.report_success(current_proxy)
+            if current_proxy:
+                _pp.report_success(current_proxy)
 
             data = resp.json()
             char_data = data.get("character", {})
