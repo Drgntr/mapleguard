@@ -13,19 +13,10 @@ from services.market_data import market_data_service
 _enable_services = os.environ.get("ENABLE_SERVICES", "false").lower() == "true"
 
 if _enable_services:
-    from services.sentinel_live import live_sentinel
-    from services.sentinel_historical import historical_sentinel
-    from services.sniper_scanner import sniper_scanner
-    from services.blockchain_indexer import blockchain_indexer
     from services.leaderboard_manager import (
         scan_all_task, enrich_chars_task, enrich_items_task,
         watch_chars_task, watch_items_task,
     )
-
-    try:
-        from services.whale_tracker import whale_tracker
-    except Exception:
-        whale_tracker = None
 
 
 @asynccontextmanager
@@ -36,21 +27,10 @@ async def lifespan(app: FastAPI):
     tasks = []
 
     if _enable_services:
-        # Core services
-        tasks.append(asyncio.create_task(live_sentinel.run_loop(interval=15)))
-        tasks.append(asyncio.create_task(historical_sentinel.run_loop(interval=600)))
-        tasks.append(asyncio.create_task(sniper_scanner.run()))
-        tasks.append(asyncio.create_task(blockchain_indexer.run_full_index(start_block=12_000_000)))
-
-        if whale_tracker:
-            tasks.append(asyncio.create_task(whale_tracker.run_loop(interval=60)))
-
-        # ── Leaderboard Backend ─────────────────────────────────────
+        # ── Leaderboard Pipeline ─────────────────────────────────────
         tasks.append(asyncio.create_task(scan_all_task()))
         tasks.append(asyncio.create_task(enrich_chars_task(batch_size=5)))
-        tasks.append(asyncio.create_task(enrich_items_task()))
         tasks.append(asyncio.create_task(watch_chars_task()))
-        tasks.append(asyncio.create_task(watch_items_task()))
         # ─────────────────────────────────────────────────────────────
 
     yield
