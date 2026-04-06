@@ -398,23 +398,16 @@ async def run_populate(nft_type: str, batch_size: int = 5):
 async def _populate_from_navigator(token_id: str, settings) -> bool:
     """
     Busca personagem no Navigator API: /navigator/characters/{tokenId}/info
-    Usa proxy pool para evitar rate-limit. Cria novo client por tentativa para permitir troca de proxy.
+    Sem proxy — Navigator API não tem rate-limit agressivo.
     """
-    from services.proxy_pool import proxy_pool as _pp
     max_retries = 3
     backoffs = [5, 15, 60]
+    prefix = f"[Populate-{token_id}]"
 
-    # Sanitize token_id — strip whitespace, remove non-printable chars, convert to int-style
-    token_id = token_id.strip()
-    # Remove any non-printable characters (\n, \r, tabs, etc.)
-    token_id = "".join(c for c in token_id if c.isprintable())
+    # Sanitize token_id — strip whitespace, remove non-printable chars
+    token_id = "".join(c for c in token_id if c.isprintable()).strip()
 
     for attempt in range(max_retries):
-        current_proxy = _pp.get_proxy() if attempt > 0 else _pp.get_proxy()
-        client_kwargs = {"timeout": 30.0}
-        if current_proxy:
-            client_kwargs["proxy"] = current_proxy
-
         try:
             url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
             headers = {
@@ -424,23 +417,16 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
                 "referer": f"https://msu.io/navigator/character/{token_id}",
             }
 
-            async with httpx.AsyncClient(**client_kwargs) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
                 resp = await client.get(url, headers=headers, timeout=30)
 
             if resp.status_code == 429:
-                if current_proxy:
-                    _pp.report_failure(current_proxy, cooldown=30)
                 await asyncio.sleep(backoffs[min(attempt, len(backoffs)-1)])
                 continue
 
             if resp.status_code != 200:
-                if current_proxy:
-                    _pp.report_failure(current_proxy)
-                await asyncio.sleep(backoffs[min(attempt, len(backoffs)-1)])
-                continue
-
-            if current_proxy:
-                _pp.report_success(current_proxy)
+                print(f"  {prefix} HTTP {resp.status_code}")
+                return False
 
             data = resp.json()
             char_data = data.get("character", {})
@@ -479,9 +465,6 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
 
             # Hyper stats
             hyper_stat = char_data.get("hyperStat", {})
-
-            # Ability
-            ability = char_data.get("ability", {})
 
             # Wearing info
             wearing = char_data.get("wearing", {})
@@ -529,7 +512,7 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
                 )).scalar_one_or_none()
                 if evt and not evt.enriched:
                     evt.enriched = True
-                    evt.retry_count = attempt
+                    evt.retry_count = 0
                     await session.commit()
 
             return True
