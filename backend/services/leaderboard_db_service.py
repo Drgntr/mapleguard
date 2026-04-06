@@ -8,7 +8,7 @@ external APIs, making responses instant (<100ms).
 import json
 from typing import Optional
 
-from sqlalchemy import select, func, or_, text
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.database import (
@@ -298,22 +298,6 @@ class LeaderboardDBService:
                 }
                 for r in rows
             ]
-
-    async def reset_enrichment(self) -> dict:
-        """Clear all character enrichment data: snapshots, mint_events enriched flags, sync state."""
-        async with async_session() as session:
-            char_count = (await session.execute(select(func.count(CharacterSnapshot.id)))).scalar() or 0
-            await session.execute(text("DELETE FROM character_snapshots"))
-            await session.commit()
-            await session.execute(text("UPDATE mint_events SET enriched = false, retry_count = 0 WHERE enriched = true"))
-            await session.commit()
-            await session.execute(text("DELETE FROM sync_state"))
-            await session.commit()
-            return {
-                "status": "ok",
-                "cleared_snapshots": char_count,
-                "message": "All character snapshots deleted, mint_events reset, sync_state cleared",
-            }
 
     async def mark_char_enriched(self, token_id: str):
         """Mark character enrichment as last processed."""

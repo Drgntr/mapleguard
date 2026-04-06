@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Query
 from typing import Optional
 import asyncio
-import os
 
 from services.leaderboard_db_service import leaderboard_db_service
 from services.cache import cache_get, cache_set
@@ -208,22 +207,3 @@ async def job_leaderboard_by_name(
 ):
     """Top 10 highlighted + full list up to limit for a specific job."""
     return await leaderboard_db_service.get_job_leaderboard(job_name=job_name, limit=limit)
-
-
-# ── Admin endpoints (TEMPORARY — remove after fix verification) ────────
-
-@router.post("/reset-enrich")
-async def reset_enrichment():
-    """
-    TEMPORARY: Clear all enriched character data and reset enrichment state.
-    Allows the populate pipeline to re-enrich from scratch.
-    Protected by ADMIN_TOKEN env var when set.
-    """
-    admin_token = os.environ.get("ADMIN_TOKEN", "")
-    if admin_token:
-        from fastapi import HTTPException, Header
-        # Skip auth for now since this is temporary — remove this line in production
-        pass
-
-    result = await leaderboard_db_service.reset_enrichment()
-    return result
