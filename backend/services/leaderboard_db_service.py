@@ -72,8 +72,8 @@ class LeaderboardDBService:
                 "total": total,
             }
 
-    async def get_combined_leaderboard(self, limit: int = 100, offset: int = 0) -> dict:
-        """Top CP characters across all classes with class grouping."""
+    async def get_combined_leaderboard(self, limit: int = 100, offset: int = 0, page: int = 1) -> dict:
+        """Top CP characters across all classes with class grouping and pagination."""
         async with async_session() as session:
             q = select(CharacterSnapshot).where(CharacterSnapshot.combat_power > 0)\
                 .order_by(CharacterSnapshot.combat_power.desc())\
@@ -102,6 +102,8 @@ class LeaderboardDBService:
                 "top_characters": chars,
                 "total_scored": total,
                 "classes": groups,
+                "page": page,
+                "has_more": offset + len(chars) < total,
             }
 
     # ── Detail Lookups ───────────────────────────────────────────────

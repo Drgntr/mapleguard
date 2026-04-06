@@ -1,98 +1,21 @@
 from fastapi import APIRouter, Query
 from typing import Optional
-import asyncio
 
 from services.leaderboard_db_service import leaderboard_db_service
-from services.cache import cache_get, cache_set
-
-try:
-    from config import get_settings
-    settings = get_settings()
-except ImportError:
-    class _FakeSettings:
-        CACHE_TTL_LONG = 300
-    settings = _FakeSettings()
 
 router = APIRouter(prefix="/api/leaderboard", tags=["Leaderboard"])
 
-# Threshold for "has data" check — below this, fallback to old live API service
-DB_MIN_THRESHOLD = 10
-
-
-async def _has_db_data() -> bool:
-    """Check if the DB has enough enriched characters to serve leaderboards."""
-    try:
-        stats = await leaderboard_db_service.get_stats()
-        char_count = stats.get("characters", {}).get("enriched", 0)
-        return char_count >= DB_MIN_THRESHOLD
-    except Exception:
-        return False
-
-
-@router.get("/scan")
-async def leaderboard_scan(limit: int = Query(50, ge=1, le=200)):
-    """
-    Full CP leaderboard: DB-first, with legacy API fallback.
-    """
-    cache_key = f"leaderboard:scan:v4:{limit}"
-    cached = await cache_get(cache_key)
-    if cached:
-        return cached
-
-    has_data = await _has_db_data()
-    if has_data:
-        result = await leaderboard_db_service.get_combined_leaderboard(limit=limit)
-    else:
-        # Fallback to old API-based service
-        from services.market_data import market_data_service
-        from services.openapi_service import openapi_service
-        from services.leaderboard_service import leaderboard_service
-        result = await leaderboard_service.compute_combined(limit=limit)
-
-    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG)
-    return result
-
-
 @router.get("/combined")
-async def combined_leaderboard(limit: int = Query(100, ge=1, le=200)):
-    """Top CP characters across all classes."""
-    return await leaderboard_db_service.get_combined_leaderboard(limit=limit)
+async def combined_leaderboard(
+    limit: int = Query(100, ge=1, le=200),
+    page: int = Query(1, ge=1),
+):
+    """Top CP characters across all classes with pagination."""
+    offset = (page - 1) * limit
+    return await leaderboard_db_service.get_combined_leaderboard(limit=limit, offset=offset, page=page)
 
 
-@router.get("/cp-overview")
-async def cp_overview():
-    """Quick CP summary: top 3 per class with stats."""
-    cache_key = "leaderboard:cp_overview:v2"
-    cached = await cache_get(cache_key)
-    if cached:
-        return cached
-
-    has_data = await _has_db_data()
-    if has_data:
-        # Build from DB
-        classes_data = await leaderboard_db_service.get_classes()
-        result = {
-            "classes": {
-                c["class_name"]: {
-                    "character_count": c["count"],
-                    "highest_cp": c["max_cp"],
-                }
-                for c in classes_data[:20]
-            },
-            "total_classes": len(classes_data),
-            "backend": "database",
-        }
-    else:
-        # Fallback
-        from services.leaderboard_service import leaderboard_service
-        result = await leaderboard_service.compute_by_class(limit=20)
-        result["backend"] = "api_fallback"
-
-    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG)
-    return result
-
-
-# ── New DB-backed endpoints ────────────────────────────────────────
+# ── DB-backed endpoints ─────────────────────────────────────────────────
 
 @router.get("/stats")
 async def leaderboard_stats():
@@ -198,3 +121,12 @@ async def job_leaderboard_by_name(
 ):
     """Top 10 highlighted + full list up to limit for a specific job."""
     return await leaderboard_db_service.get_job_leaderboard(job_name=job_name, limit=limit)
+
+
+# ── Enrichment stats ──────────────────────────────────────────────────
+
+@router.get("/enrich-stats")
+async def enrichment_stats():
+    """Enrichment pipeline statistics: success rate, errors, batches."""
+    from services.leaderboard_manager import get_enrich_stats
+    return get_enrich_stats()

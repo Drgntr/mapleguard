@@ -131,13 +131,6 @@ export function useWhaleLeaderboards() {
   });
 }
 
-export function useLeaderboardScan(limit = 100) {
-  return useSWR(`/api/leaderboard/scan?limit=${limit}`, fetcher, {
-    refreshInterval: 0,
-    revalidateOnFocus: false,
-    staleTime: 5 * 60 * 1000,
-  });
-}
 
 export function useHistoricalSnipes() {
   return useSWR("/api/market/sentinel/snipes", fetcher, {
@@ -175,19 +168,6 @@ export function useLeaderboardStats() {
 export function useLeaderboardCombined(limit = 100) {
   return useSWR(`/api/leaderboard/combined?limit=${limit}`, fetcher, {
     refreshInterval: 60000,
-  });
-}
-
-export function useLeaderboardByClass(className?: string, limit = 50) {
-  // Uses combined leaderboard (no class filter — backend serves all classes)
-  return useSWR(`/api/leaderboard/combined?limit=${limit}`, fetcher, {
-    refreshInterval: 60000,
-  });
-}
-
-export function useLeaderboardClasses() {
-  return useSWR("/api/leaderboard/classes", fetcher, {
-    refreshInterval: 120000,
   });
 }
 

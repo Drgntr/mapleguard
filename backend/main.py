@@ -28,10 +28,12 @@ async def lifespan(app: FastAPI):
     tasks = []
 
     if _enable_services:
+        from services.leaderboard_manager import re_enrich_task
         print("[START] Launching leaderboard pipeline...")
         tasks.append(asyncio.create_task(scan_all_task()))
         tasks.append(asyncio.create_task(enrich_chars_task(batch_size=5)))
         tasks.append(asyncio.create_task(watch_chars_task()))
+        tasks.append(asyncio.create_task(re_enrich_task()))
         print("[START] All leaderboard tasks launched!")
 
     yield

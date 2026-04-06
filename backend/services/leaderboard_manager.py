@@ -361,6 +361,25 @@ async def _search_asset_key(char_name: str, nav_client: httpx.AsyncClient) -> Op
 # Set of permanently unenrichable token IDs (not in Navigator, bad URI, etc)
 _unenrichable: Set[str] = set()
 
+# ── Enrichment stats tracking ────────────────────────────────────────────
+_enrich_ok = 0
+_enrich_skip = 0
+_enrich_errors = 0
+_enrich_batch_count = 0
+
+def get_enrich_stats() -> dict:
+    """Return enrichment statistics for the /enrich-stats endpoint."""
+    total = _enrich_ok + _enrich_skip + _enrich_errors
+    rate = (_enrich_ok / total * 100) if total > 0 else 0
+    return {
+        "total_ok": _enrich_ok,
+        "total_skipped": _enrich_skip,
+        "total_errors": _enrich_errors,
+        "success_rate": f"{rate:.1f}%",
+        "batches_processed": _enrich_batch_count,
+        "unenrichable_count": len(_unenrichable),
+    }
+
 
 async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.AsyncClient) -> bool:
     """
@@ -580,12 +599,24 @@ async def run_populate(nft_type: str, batch_size: int = 10):
                 batch = list(pending)[:batch_size]
                 results = await asyncio.gather(*[populate_one(tid) for tid in batch], return_exceptions=True)
 
+                global _enrich_ok, _enrich_skip, _enrich_errors, _enrich_batch_count
                 ok = sum(1 for r in results if r is True)
                 skipped = sum(1 for r in results if r is False)
                 errs = sum(1 for r in results if isinstance(r, Exception))
+                _enrich_ok += ok
+                _enrich_skip += skipped
+                _enrich_errors += errs
+                _enrich_batch_count += 1
                 done = ok + skipped  # False means permanently unenrichable, add to skip set
 
                 print(f"{prefix} Batch: {ok} enriched, {skipped} skipped, {errs} errors")
+
+                if _enrich_batch_count % 10 == 0:
+                    total_runs = _enrich_ok + _enrich_skip + _enrich_errors
+                    rate = (_enrich_ok / total_runs * 100) if total_runs > 0 else 0
+                    print(f"[Populate] Stats: {_enrich_ok} ok, {_enrich_skip} skipped, "
+                          f"{_enrich_errors} errors ({rate:.1f}% success) | "
+                          f"{_enrich_batch_count} batches")
 
                 await asyncio.sleep(2)
 
@@ -619,3 +650,49 @@ async def watch_chars_task():
 
 async def watch_items_task():
     await run_mint_watcher("item")
+
+
+# ── Re-enrich top characters periodically ─────────────────────────────────
+
+async def re_enrich_task(interval_hours: int = 24):
+    """Periodically re-enrich top 50 characters to keep CP current."""
+    await _ensure_db_tables()
+    prefix = "[Re-enrich]"
+    from db.database import CharacterSnapshot, async_session
+
+    print(f"{prefix} Starting (interval={interval_hours}h)")
+
+    while True:
+        try:
+            async with async_session() as session:
+                rows = (await session.execute(
+                    select(CharacterSnapshot.token_id)
+                    .where(CharacterSnapshot.combat_power > 0)
+                    .order_by(CharacterSnapshot.combat_power.desc())
+                    .limit(50)
+                )).scalars().all()
+
+            if not rows:
+                await asyncio.sleep(60 * 10)
+                continue
+
+            print(f"{prefix} Refreshing top {len(rows)} characters...")
+            from config import get_settings
+            settings = get_settings()
+            async with httpx.AsyncClient(timeout=30.0, verify=False) as nav_client:
+
+                sem = asyncio.Semaphore(10)
+                async def refresh_one(tid: str):
+                    async with sem:
+                        return await _populate_from_navigator(tid, settings, nav_client)
+
+                results = await asyncio.gather(*[refresh_one(tid) for tid in rows], return_exceptions=True)
+                ok = sum(1 for r in results if r is True)
+                print(f"{prefix} Done: {ok}/{len(rows)} updated")
+
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"{prefix} Error: {e}")
+
+        await asyncio.sleep(interval_hours * 3600)
