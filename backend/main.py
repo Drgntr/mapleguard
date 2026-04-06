@@ -47,7 +47,7 @@ async def lifespan(app: FastAPI):
 
         # ── Leaderboard Backend ─────────────────────────────────────
         tasks.append(asyncio.create_task(scan_all_task()))
-        tasks.append(asyncio.create_task(enrich_chars_task()))
+        tasks.append(asyncio.create_task(enrich_chars_task(batch_size=5)))
         tasks.append(asyncio.create_task(enrich_items_task()))
         tasks.append(asyncio.create_task(watch_chars_task()))
         tasks.append(asyncio.create_task(watch_items_task()))
