@@ -410,6 +410,8 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
     for attempt in range(max_retries):
         try:
             url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
+            if attempt == 0:
+                print(f"  {prefix} Trying: {url}")
             headers = {
                 "accept": "*/*",
                 "accept-language": "en-US,en;q=0.9",
@@ -425,7 +427,7 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
                 continue
 
             if resp.status_code != 200:
-                print(f"  {prefix} HTTP {resp.status_code}")
+                print(f"  {prefix} HTTP {resp.status_code} — {resp.text[:200]}")
                 return False
 
             data = resp.json()
