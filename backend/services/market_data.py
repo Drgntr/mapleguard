@@ -50,7 +50,7 @@ XANGLE_HEADERS = {
     "origin": "https://msu-explorer.xangle.io",
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
     "x-chain": "NEXON",
-    "x-secret-key": "21203760ac9d08ecb5bc85c25553d7d14fc3bdaea0feab409baa7bd62c18d84897308db8845a02c507f39fccb83e1ac061b1e2e36f54aa0e6dd11d8afdf58429",
+    "x-secret-key": os.environ.get("XANGLE_SECRET_KEY", "PLACEHOLDER_KEY_REMOVED"),
 }
 
 
