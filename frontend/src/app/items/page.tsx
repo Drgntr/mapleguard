@@ -319,7 +319,8 @@ export default function ItemsPage() {
                   for (const [pot, info] of Object.entries(gradeMap as Record<string, unknown>)) {
                     const d = info as Record<string, number>;
                     if (d?.floor) {
-                      flat.push({ name, sf, pot: ["None", "Rare", "Epic", "Unique", "Legendary", "Special", "Mythic"][pot] || pot, floor: d.floor, median: d.median || 0, count: d.count || 0 });
+                      const potLabel = ["None", "Rare", "Epic", "Unique", "Legendary", "Special", "Mythic"][Number(pot)] || pot;
+                      flat.push({ name, sf, pot: potLabel, floor: d.floor, median: d.median || 0, count: d.count || 0 });
                     }
                   }
                 }
