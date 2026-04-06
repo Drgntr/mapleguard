@@ -430,10 +430,22 @@ async def _token_uri_metadata(token_id: str) -> Optional[str]:
             str_data = data[64 + offset + 64: 64 + offset + 64 + length * 2]
             raw_bytes = bytes.fromhex(str_data)
             # Strip null bytes from ABI padding
-            uri = raw_bytes.rstrip(b"\x00").decode("utf-8")
+            uri = raw_bytes.rstrip(b"\x00").decode("utf-8", errors="replace").strip()
+
+            # Debug: log decoded URI to understand failures
+            print(f"  [Metadata DBG] {token_id}: {uri[:140]}")
+
+            # Handle various URI schemes
+            if uri.startswith("ipfs://"):
+                cid = uri[7:]
+                uri = f"https://ipfs.io/ipfs/{cid}"
+            elif not uri.startswith(("http://", "https://")):
+                print(f"  [Metadata SKIP] {token_id}: non-HTTP URI: {uri[:140]}")
+                return None
 
             # Fetch actual metadata from URI
             resp2 = await client.get(uri, headers={"accept": "application/json"})
+            resp2.raise_for_status()
             meta = resp2.json()
             return meta.get("name", "")
     except Exception as e:
