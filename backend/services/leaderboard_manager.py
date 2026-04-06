@@ -21,6 +21,8 @@ except ImportError:
     select = None
     func = None
 
+from services.combat_power_engine import _get_stat_total
+
 # ── Shared helpers ─────────────────────────────────────────────────────────
 
 async def _ensure_db_tables():
@@ -163,36 +165,6 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                 for item in items:
                     token_id = str(item.get("tokenId", "")).strip().rstrip("\n")
                     if not token_id:
-                        continue
-                    from_addr = item.get("from", "").lower()
-                    block = int(item.get("blockNumber", 0) or item.get("block", 0))
-
-                    ts = 0
-                    created_at = item.get("createdAt", "")
-                    if created_at:
-                        try:
-                            dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                            ts = int(dt.timestamp())
-                        except Exception:
-                            pass
-
-                    # Only save mints (from=0x0) to NftMintLookup
-                    is_mint = from_addr == "0x0000000000000000000000000000000000000000"
-
-                    async with async_session() as session:
-                        exists = (await session.execute(
-                            select(NftMintLookup.id).where(NftMintLookup.token_id == token_id)
-                        )).scalar_one_or_none()
-                        if not exists and is_mint:
-                            session.add(NftMintLookup(
-                                token_id=token_id, nft_type=type_name,
-                                minter=from_addr, block_number=block,
-                            ))
-                            session.add(MintEvent(
-                                token_id=token_id, nft_type=type_name,
-                                minter=from_addr, block_number=block,
-                                timestamp=ts, enriched=False, retry_count=0,
-                            ))
                         continue
                     from_addr = item.get("from", "").lower()
                     block = int(item.get("blockNumber", 0) or item.get("block", 0))
@@ -544,15 +516,26 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
             image_url = char_data.get("imageUrl", "")
             asset_key = char_data.get("assetKey", "")
 
-            # AP Stats e CP real do Navigator
-            ap_stat = char_data.get("apStat", {})
-            from services.combat_power_engine import _get_stat_total
-
-            # CP real reportado pelo Navigator (fonte oficial)
+            # CP — Navigator reports real combatPower at top level
             cp_val = char_data.get("combatPower", 0)
             if isinstance(cp_val, dict):
                 cp_val = cp_val.get("total", 0)
-            cp_val = int(cp_val) if cp_val else 0
+            if not cp_val:
+                # Fallback: try attackPower.total
+                cp_val = char_data.get("attackPower", 0)
+                if isinstance(cp_val, dict):
+                    cp_val = cp_val.get("total", 0)
+            try:
+                cp_val = int(cp_val) if cp_val else 0
+            except (ValueError, TypeError):
+                cp_val = 0
+
+            # AP stats (needed for PAD/MAD and CP calc)
+            ap_stat = char_data.get("apStat", {})
+
+            # Debug: log CP and available keys to find correct field name
+            available_keys = list(char_data.keys())
+            print(f"  {prefix} CP={cp_val} | keys={available_keys}")
 
             # Hyper stats
             hyper_stat = char_data.get("hyperStat", {})
