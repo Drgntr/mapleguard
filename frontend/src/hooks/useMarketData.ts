@@ -220,6 +220,7 @@ export interface JobInfo {
 
 export interface JobLeaderboardEntry {
   token_id: string;
+  asset_key: string;
   name: string;
   class_name: string;
   job_name: string;

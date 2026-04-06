@@ -365,6 +365,7 @@ class LeaderboardDBService:
             chars = [
                 {
                     "token_id": r.token_id,
+                    "asset_key": r.asset_key,
                     "name": r.name,
                     "class_name": r.class_name,
                     "job_name": r.job_name,

@@ -5,6 +5,7 @@ import { useJobsList, useJobLeaderboard, type JobInfo } from "@/hooks/useMarketD
 
 interface JobEntry {
   token_id: string;
+  asset_key: string;
   name: string;
   class_name: string;
   job_name: string;
@@ -148,13 +149,20 @@ function TopCard({ char, rank }: { char: JobEntry; rank: number }) {
   return (
     <div className={`panel p-3 text-center ${isTop3 ? `border-t-2 ${rank === 1 ? "border-terminal-yellow/30" : rank === 2 ? "border-terminal-muted/20" : "border-terminal-red/20"}` : "border border-terminal-border/30"}`}>
       <div className={`text-lg font-bold ${medalColor}`}>#{rank}</div>
-      <img
-        src={char.image_url || "/placeholder.png"}
-        alt={char.name}
-        className="w-12 h-12 mx-auto my-1 rounded-full border border-terminal-border object-cover"
-        onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.png"; }}
-      />
-      <div className={`text-xs font-mono font-bold truncate ${color}`}>{char.name}</div>
+      <a
+        href={`https://msu.io/navigator/character/${char.asset_key}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block cursor-pointer hover:opacity-80"
+      >
+        <img
+          src={char.image_url || "/placeholder.png"}
+          alt={char.name}
+          className="w-12 h-12 mx-auto my-1 rounded-full border border-terminal-border object-cover"
+          onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.png"; }}
+        />
+        <div className={`text-xs font-mono font-bold truncate ${color}`}>{char.name}</div>
+      </a>
       <div className="text-[9px] font-mono text-terminal-muted">
         {char.job_name} · {char.class_name} Lv.{char.level}
       </div>
@@ -198,13 +206,20 @@ function JobTable({ chars }: { chars: JobEntry[] }) {
               #{i + 1}
             </div>
             <div className="col-span-3 flex items-center gap-2">
-              <img
-                src={char.image_url || "/placeholder.png"}
-                alt={char.name}
-                className="w-8 h-8 rounded border border-terminal-border object-cover flex-shrink-0"
-                onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.png"; }}
-              />
-              <span className="font-mono text-xs text-terminal-text truncate">{char.name}</span>
+              <a
+                href={`https://msu.io/navigator/character/${char.asset_key}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 cursor-pointer hover:opacity-80"
+              >
+                <img
+                  src={char.image_url || "/placeholder.png"}
+                  alt={char.name}
+                  className="w-8 h-8 rounded border border-terminal-border object-cover flex-shrink-0"
+                  onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.png"; }}
+                />
+                <span className="font-mono text-xs text-terminal-text truncate">{char.name}</span>
+              </a>
             </div>
             <div className="col-span-2 text-center font-mono text-xs text-terminal-accent">
               {char.job_name}
