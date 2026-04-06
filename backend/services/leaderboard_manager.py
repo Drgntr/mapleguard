@@ -395,28 +395,107 @@ async def run_populate(nft_type: str, batch_size: int = 5):
             await asyncio.sleep(30)
 
 
+async def _token_uri_metadata(token_id: str) -> Optional[str]:
+    """Fetch token metadata from on-chain tokenURI to get character name."""
+    try:
+        # Convert numeric token_id to hex for ABI encoding
+        tid_num = int(token_id.strip())
+        tid_hex = hex(tid_num)[2:].zfill(64)
+
+        # Call tokenURI(uint256) on the Character NFT contract
+        # selector for tokenURI(uint256) = 0xc87b56dd
+        from config import get_settings
+        settings = get_settings()
+
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "eth_call",
+            "params": [{
+                "to": settings.CHARACTER_NFT,
+                "data": "0xc87b56dd" + tid_hex,
+            }, "latest"],
+            "id": 1,
+        }
+
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.post(settings.RPC_URL, json=payload)
+            result = resp.json().get("result", "")
+            if not result or result == "0x":
+                return None
+
+            # Decode ABI string response (offset + length + data)
+            data = result[2:]  # remove 0x
+            offset = int(data[:64], 16) * 2  # offset in hex chars (32 bytes = 64 hex)
+            length = int(data[64 + offset:64 + offset + 64], 16)
+            str_data = data[64 + offset + 64: 64 + offset + 64 + length * 2]
+            uri = bytes.fromhex(str_data).decode("utf-8")
+
+            # Fetch actual metadata from URI
+            resp2 = await client.get(uri, headers={"accept": "application/json"})
+            meta = resp2.json()
+            return meta.get("name", "")
+    except Exception as e:
+        print(f"  [Metadata ERR] {token_id}: {e}")
+        return None
+
+
+async def _search_asset_key(char_name: str) -> Optional[dict]:
+    """Search Navigator by name to find assetKey (needed for detail endpoint)."""
+    url = f"https://msu.io/navigator/api/navigator/search?keyword={char_name}&limit=20"
+    headers = {"accept": "application/json"}
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.get(url, headers=headers)
+
+    if resp.status_code != 200:
+        return None
+
+    data = resp.json()
+    records = data.get("records", [])
+    for rec in records:
+        if rec.get("type") == "character" and rec.get("character", {}).get("characterName", "").lower() == char_name.lower():
+            return rec["character"]
+    return None
+
+
 async def _populate_from_navigator(token_id: str, settings) -> bool:
     """
-    Busca personagem no Navigator API: /navigator/characters/{tokenId}/info
-    Sem proxy — Navigator API não tem rate-limit agressivo.
+    Busca personagem via Navigator API.
+    Pipeline: tokenURI → name → search → assetKey → detail
     """
     max_retries = 3
     backoffs = [5, 15, 60]
     prefix = f"[Populate-{token_id}]"
 
-    # Sanitize token_id — strip whitespace, remove non-printable chars
+    # Sanitize token_id
     token_id = "".join(c for c in token_id if c.isprintable()).strip()
 
     for attempt in range(max_retries):
         try:
-            url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
-            if attempt == 0:
-                print(f"  {prefix} Trying: {url}")
+            # Step 1: Get character name from tokenURI
+            char_name = await _token_uri_metadata(token_id)
+            if not char_name:
+                print(f"  {prefix} No name from tokenURI")
+                return False
+
+            # Step 2: Search by name to get assetKey
+            char_info = await _search_asset_key(char_name)
+            if not char_info:
+                print(f"  {prefix} Name '{char_name}' not found in Navigator search")
+                return False
+
+            asset_key = char_info.get("assetKey", "")
+            if not asset_key:
+                print(f"  {prefix} No assetKey found for '{char_name}'")
+                return False
+
+            # Step 3: Get full detail using assetKey
+            url = f"https://msu.io/navigator/api/navigator/characters/{asset_key}/info"
             headers = {
                 "accept": "*/*",
                 "accept-language": "en-US,en;q=0.9",
                 "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
-                "referer": f"https://msu.io/navigator/character/{token_id}",
+                "referer": f"https://msu.io/navigator/character/{asset_key}",
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -427,7 +506,7 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
                 continue
 
             if resp.status_code != 200:
-                print(f"  {prefix} HTTP {resp.status_code} — {resp.text[:200]}")
+                print(f"  {prefix} HTTP {resp.status_code}")
                 return False
 
             data = resp.json()
