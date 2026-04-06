@@ -25,7 +25,7 @@ class LeaderboardDBService:
         return async_session()
 
     async def _sync_state_get(self, key: str, default: str = "") -> str:
-        async with self._get_session() as session:
+        async with async_session() as session:
             row = await session.execute(select(SyncState).where(SyncState.key == key))
             s = row.scalar_one_or_none()
             return s.value if s else default
