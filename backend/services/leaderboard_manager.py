@@ -159,7 +159,7 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                 # Insert into DB
                 new_count = 0
                 for item in items:
-                    token_id = str(item.get("tokenId", ""))
+                    token_id = str(item.get("tokenId", "")).strip().rstrip("\n")
                     if not token_id:
                         continue
                     from_addr = item.get("from", "").lower()
@@ -371,6 +371,9 @@ async def _populate_from_navigator(token_id: str, settings) -> bool:
     from services.proxy_pool import proxy_pool as _pp
     max_retries = 3
     backoffs = [5, 15, 60]
+
+    # Sanitize token_id — prevent \n from Routescan API
+    token_id = token_id.strip().rstrip("\n")
 
     for attempt in range(max_retries):
         current_proxy = _pp.get_proxy() if attempt > 0 else _pp.get_proxy()

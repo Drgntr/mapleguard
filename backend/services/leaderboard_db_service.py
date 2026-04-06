@@ -36,7 +36,7 @@ class LeaderboardDBService:
         self, class_name: Optional[str] = None, limit: int = 50, offset: int = 0
     ) -> dict:
         """Top CP characters, optionally filtered by class."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             q = select(CharacterSnapshot).where(CharacterSnapshot.combat_power > 0)
             if class_name and class_name != "all" and class_name != "all_classes":
                 q = q.where(CharacterSnapshot.class_name == class_name)
@@ -74,7 +74,7 @@ class LeaderboardDBService:
 
     async def get_combined_leaderboard(self, limit: int = 100, offset: int = 0) -> dict:
         """Top CP characters across all classes with class grouping."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             q = select(CharacterSnapshot).where(CharacterSnapshot.combat_power > 0)\
                 .order_by(CharacterSnapshot.combat_power.desc())\
                 .offset(offset).limit(limit)
@@ -108,7 +108,7 @@ class LeaderboardDBService:
 
     async def get_char_detail(self, token_id: str) -> Optional[dict]:
         """Full character snapshot detail."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             q = select(CharacterSnapshot).where(CharacterSnapshot.token_id == token_id)
             row = (await session.execute(q)).scalar_one_or_none()
             if not row:
@@ -137,7 +137,7 @@ class LeaderboardDBService:
 
     async def get_item_detail(self, token_id: str) -> Optional[dict]:
         """Full item snapshot detail."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             q = select(ItemSnapshot).where(ItemSnapshot.token_id == token_id)
             row = (await session.execute(q)).scalar_one_or_none()
             if not row:
@@ -167,7 +167,7 @@ class LeaderboardDBService:
 
     async def get_recent_mints(self, nft_type: Optional[str] = None, limit: int = 50) -> list[dict]:
         """Recent mint events."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             q = select(MintEvent)
             if nft_type:
                 q = q.where(MintEvent.nft_type == nft_type)
@@ -190,7 +190,7 @@ class LeaderboardDBService:
     async def get_stats(self) -> dict:
         """Dashboard-style stats."""
         try:
-            async with self._get_session() as session:
+            async with async_session() as session:
                 char_count = (await session.execute(
                     select(func.count(CharacterSnapshot.id))
                 )).scalar() or 0
@@ -258,7 +258,7 @@ class LeaderboardDBService:
 
     async def get_classes(self) -> list[dict]:
         """List all known classes with character counts and max CP."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             sub = select(
                 CharacterSnapshot.class_name,
                 func.count(CharacterSnapshot.id).label("count"),
@@ -278,7 +278,7 @@ class LeaderboardDBService:
 
     async def search_characters(self, query: str, limit: int = 20) -> list[dict]:
         """Search characters by name or class."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             q = select(CharacterSnapshot).where(
                 or_(
                     CharacterSnapshot.name.ilike(f"%{query}%"),
@@ -301,7 +301,7 @@ class LeaderboardDBService:
 
     async def mark_char_enriched(self, token_id: str):
         """Mark character enrichment as last processed."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             row = await session.execute(select(SyncState).where(SyncState.key == "enrich_characters_last_token"))
             s = row.scalar_one_or_none()
             if s:
@@ -312,7 +312,7 @@ class LeaderboardDBService:
 
     async def mark_item_enriched(self, token_id: str):
         """Mark item enrichment as last processed."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             row = await session.execute(select(SyncState).where(SyncState.key == "enrich_items_last_token"))
             s = row.scalar_one_or_none()
             if s:
@@ -323,7 +323,7 @@ class LeaderboardDBService:
 
     async def save_sync_state(self, key: str, value: str):
         """Save arbitrary sync state."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             row = await session.execute(select(SyncState).where(SyncState.key == key))
             s = row.scalar_one_or_none()
             if s:
@@ -338,7 +338,7 @@ class LeaderboardDBService:
         self, job_name: Optional[str] = None, limit: int = 100
     ) -> dict:
         """Top CP characters by job. Returns top 10 highlighted + full list."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             base_q = select(CharacterSnapshot).where(
                 CharacterSnapshot.combat_power > 0
             )
@@ -385,7 +385,7 @@ class LeaderboardDBService:
 
     async def list_jobs(self) -> list[dict]:
         """List all known jobs with character counts and max CP."""
-        async with self._get_session() as session:
+        async with async_session() as session:
             rows = (
                 await session.execute(
                     select(
