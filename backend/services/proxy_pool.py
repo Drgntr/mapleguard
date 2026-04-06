@@ -40,10 +40,16 @@ class ProxyPool:
         if self._loaded:
             return
 
-        # 1. Try env var first (comma-separated full URLs)
+        # 1. Try env var first (comma or newline-separated full URLs)
         proxy_list = os.environ.get("PROXY_LIST", "").strip()
         if proxy_list:
-            urls = [self._clean(u.strip()) for u in proxy_list.split(",") if u.strip()]
+            urls = []
+            for line in proxy_list.replace("\n", ",").split(","):
+                url = self._clean(line.strip())
+                if url and "http" not in url:
+                    url = f"http://{url}"
+                if url:
+                    urls.append(url)
             self._proxies = [{"url": u, "failures": 0, "cooldown_until": 0} for u in urls]
             self._loaded = True
             print(f"[ProxyPool] Loaded {len(self._proxies)} proxies from PROXY_LIST")
@@ -100,7 +106,7 @@ class ProxyPool:
                 with open(config_path, "r") as f:
                     data = json.load(f)
                 urls = data.get("proxies", [])
-                self._proxies = [{"url": u, "failures": 0, "cooldown_until": 0} for u in urls]
+                self._proxies = [{"url": self._clean(u), "failures": 0, "cooldown_until": 0} for u in urls]
                 self._loaded = True
                 print(f"[ProxyPool] Loaded {len(self._proxies)} proxies from {config_path}")
                 return

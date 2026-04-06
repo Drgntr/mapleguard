@@ -98,6 +98,8 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
         base_proxy = proxy_pool.get_proxy()
         client_kwargs = {"verify": False, "timeout": 15.0}
         if base_proxy:
+            if not base_proxy.startswith(("http://", "https://")):
+                base_proxy = f"http://{base_proxy}"
             client_kwargs["proxy"] = base_proxy
 
         async with httpx.AsyncClient(**client_kwargs) as client:
