@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query
 from typing import Optional
 import asyncio
+import os
 
 from services.leaderboard_db_service import leaderboard_db_service
 from services.cache import cache_get, cache_set
@@ -207,3 +208,8 @@ async def job_leaderboard_by_name(
 ):
     """Top 10 highlighted + full list up to limit for a specific job."""
     return await leaderboard_db_service.get_job_leaderboard(job_name=job_name, limit=limit)
+
+
+@router.post("/reset-enrich")
+async def reset_enrichment():
+    return await leaderboard_db_service.reset_enrichment()
