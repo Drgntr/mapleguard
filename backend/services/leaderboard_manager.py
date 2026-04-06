@@ -445,17 +445,28 @@ async def _populate_from_navigator(token_id: str, settings, nav_client: httpx.As
             image_url = char_data.get("imageUrl", "")
             asset_key_resp = char_data.get("assetKey", "")
 
-            # CP — from apStat.attackPower (string like "7022811")
+            # CP — from apStat.attackPower (string like "7022811") or fallback to pad/mad total
             ap_stat = char_data.get("apStat") or {}
-            cp_val = ap_stat.get("attackPower", 0) if ap_stat else 0
-            try:
-                cp_val = int(cp_val) if cp_val else 0
-            except (ValueError, TypeError):
-                cp_val = 0
+            cp_val = 0
+
+            if ap_stat:
+                cp_raw = ap_stat.get("attackPower", 0)
+                try:
+                    cp_val = int(cp_raw) if cp_raw else 0
+                except (ValueError, TypeError):
+                    cp_val = 0
+
+                # Fallback: pad.total / mad.total (nested {total, base, enhance} format)
+                if cp_val == 0:
+                    pad_obj = ap_stat.get("pad", {})
+                    mad_obj = ap_stat.get("mad", {})
+                    pad_total = int(pad_obj.get("total", 0) or 0) if isinstance(pad_obj, dict) else int(pad_obj or 0)
+                    mad_total = int(mad_obj.get("total", 0) or 0) if isinstance(mad_obj, dict) else int(mad_obj or 0)
+                    if pad_total > 0 or mad_total > 0:
+                        cp_val = max(pad_total, mad_total)
 
             if cp_val == 0:
-                ap_keys = list(ap_stat.keys()) if ap_stat else "MISSING"
-                print(f"  {prefix} SKIP — apStat.attackPower=0, keys: {ap_keys}")
+                print(f"  {prefix} SKIP — no CP from apStat")
                 return False
 
             hyper_stat = char_data.get("hyperStat", {})
