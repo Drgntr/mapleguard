@@ -116,7 +116,7 @@ class ProxyPool:
             self._index += 1
             p = self._proxies[idx]
             if now >= p["cooldown_until"]:
-                return p["url"]
+                return p["url"].strip()
             self._index += 1
 
         return None

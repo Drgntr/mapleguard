@@ -191,6 +191,36 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                                 minter=from_addr, block_number=block,
                                 timestamp=ts, enriched=False, retry_count=0,
                             ))
+                        continue
+                    from_addr = item.get("from", "").lower()
+                    block = int(item.get("blockNumber", 0) or item.get("block", 0))
+
+                    ts = 0
+                    created_at = item.get("createdAt", "")
+                    if created_at:
+                        try:
+                            dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                            ts = int(dt.timestamp())
+                        except Exception:
+                            pass
+
+                    # Only save mints (from=0x0) to NftMintLookup
+                    is_mint = from_addr == "0x0000000000000000000000000000000000000000"
+
+                    async with async_session() as session:
+                        exists = (await session.execute(
+                            select(NftMintLookup.id).where(NftMintLookup.token_id == token_id)
+                        )).scalar_one_or_none()
+                        if not exists and is_mint:
+                            session.add(NftMintLookup(
+                                token_id=token_id, nft_type=type_name,
+                                minter=from_addr, block_number=block,
+                            ))
+                            session.add(MintEvent(
+                                token_id=token_id, nft_type=type_name,
+                                minter=from_addr, block_number=block,
+                                timestamp=ts, enriched=False, retry_count=0,
+                            ))
                             await session.commit()
                             new_count += 1
 
