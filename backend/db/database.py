@@ -286,6 +286,7 @@ class MintEvent(Base):
     block_number: Mapped[int] = mapped_column(Integer, default=0)
     timestamp: Mapped[int] = mapped_column(Integer, default=0)
     enriched: Mapped[bool] = mapped_column(default=False)
+    retry_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     __table_args__ = (

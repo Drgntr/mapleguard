@@ -318,5 +318,83 @@ class LeaderboardDBService:
                 session.add(SyncState(key=key, value=value))
             await session.commit()
 
+    # ── Job Leaderboard ────────────────────────────────────────────────
+
+    async def get_job_leaderboard(
+        self, job_name: Optional[str] = None, limit: int = 100
+    ) -> dict:
+        """Top CP characters by job. Returns top 10 highlighted + full list."""
+        async with self._get_session() as session:
+            base_q = select(CharacterSnapshot).where(
+                CharacterSnapshot.combat_power > 0
+            )
+            if job_name:
+                base_q = base_q.where(CharacterSnapshot.job_name == job_name)
+
+            # Total count
+            count_q = select(func.count(CharacterSnapshot.id)).where(
+                CharacterSnapshot.combat_power > 0
+            )
+            if job_name:
+                count_q = count_q.where(CharacterSnapshot.job_name == job_name)
+            total = (await session.execute(count_q)).scalar() or 0
+
+            # Full list ordered by CP
+            rows = (
+                await session.execute(
+                    base_q.order_by(CharacterSnapshot.combat_power.desc()).limit(limit)
+                )
+            ).scalars().all()
+
+            chars = [
+                {
+                    "token_id": r.token_id,
+                    "name": r.name,
+                    "class_name": r.class_name,
+                    "job_name": r.job_name,
+                    "level": r.level,
+                    "combat_power": r.combat_power,
+                    "char_att": r.char_att,
+                    "char_matt": r.char_matt,
+                    "image_url": r.image_url,
+                    "source": r.source,
+                }
+                for r in rows
+            ]
+
+            return {
+                "job_name": job_name or "all",
+                "top10": chars[:10],
+                "all": chars,
+                "total": total,
+            }
+
+    async def list_jobs(self) -> list[dict]:
+        """List all known jobs with character counts and max CP."""
+        async with self._get_session() as session:
+            rows = (
+                await session.execute(
+                    select(
+                        CharacterSnapshot.job_name,
+                        func.count(CharacterSnapshot.id).label("count"),
+                        func.max(CharacterSnapshot.combat_power).label("max_cp"),
+                        func.max(CharacterSnapshot.class_name).label("class_name"),
+                    )
+                    .where(CharacterSnapshot.job_name != "")
+                    .group_by(CharacterSnapshot.job_name)
+                    .order_by(func.count(CharacterSnapshot.id).desc())
+                )
+            ).all()
+
+            return [
+                {
+                    "job_name": r[0],
+                    "count": r[1],
+                    "max_cp": r[2] or 0,
+                    "class_name": r[3] or "",
+                }
+                for r in rows
+            ]
+
 
 leaderboard_db_service = LeaderboardDBService()

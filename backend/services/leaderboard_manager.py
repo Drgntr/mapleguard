@@ -23,9 +23,6 @@ except ImportError:
     select = None
     func = None
 
-# Lazy imports to avoid circular deps — all imported inside functions
-
-
 # ── Shared helpers ─────────────────────────────────────────────────────────
 
 async def _ensure_db_tables():
@@ -58,6 +55,7 @@ async def _save_sync_state(key: str, value: str):
 async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
     """
     Scan historic NFT mints from Routescan API and save to nft_mint_lookup.
+    Uses proxy pool for rate-limit avoidance.
     If nft_type == "all", scans both chars and items.
     Runs once at startup.
 
@@ -69,6 +67,7 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
 
     from db.database import NftMintLookup, MintEvent, async_session
     from config import get_settings
+    from services.proxy_pool import proxy_pool
     settings = get_settings()
 
     BASE_URL = "https://api.routescan.io/v2/network/mainnet/evm/68414"
@@ -83,6 +82,10 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
     for type_name, contract in targets:
         prefix = f"[Scan-{type_name}]"
         print(f"{prefix} Starting full historical scan...")
+
+        # Load proxy pool
+        proxy_pool.load()
+        print(f"{prefix} Proxy pool status: {proxy_pool.status()}")
 
         # Check for resume
         cursor_url = await _get_sync_state(f"scan_{type_name}s_cursor")
@@ -104,16 +107,47 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                     print(f"{prefix} Page limit reached ({limit_pages})")
                     break
 
+                # Try with proxy first, fallback to direct
+                resp = None
+                proxy_url = proxy_pool.get_proxy()
+                retries = 3
+
+                for attempt in range(retries):
+                    try:
+                        extra = {"proxy": proxy_url} if (proxy_url and attempt == 0) else {}
+                        resp = await client.get(cursor_url, timeout=15.0, **extra)
+                        if resp.status_code == 429:
+                            if proxy_url and attempt == 0:
+                                proxy_pool.report_failure(proxy_url, cooldown=60)
+                            wait = 5 * (attempt + 1)
+                            print(f"{prefix} Rate limited — waiting {wait}s (attempt {attempt+1}/{retries})")
+                            await asyncio.sleep(wait)
+                            proxy_url = proxy_pool.get_proxy()
+                            page_num -= 1
+                            continue
+                        if resp.status_code != 200:
+                            print(f"{prefix} HTTP {resp.status_code} — stopping")
+                            resp = None
+                            break
+                        if proxy_url and attempt == 0:
+                            proxy_pool.report_success(proxy_url)
+                        break  # Success
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as e:
+                        print(f"{prefix} Request error (attempt {attempt+1}/{retries}): {e}")
+                        if proxy_url and attempt == 0:
+                            proxy_pool.report_failure(proxy_url, cooldown=30)
+                        await asyncio.sleep(3)
+                        proxy_url = proxy_pool.get_proxy()
+
+                if resp is None and page_num < limit_pages:
+                    print(f"{prefix} All retries failed — stopping scan")
+                    break
+                if resp is None:
+                    continue
+
                 try:
-                    resp = await client.get(cursor_url, timeout=15.0)
-                    if resp.status_code == 429:
-                        print(f"{prefix} Rate limited — waiting 15s")
-                        await asyncio.sleep(15)
-                        page_num -= 1
-                        continue
-                    if resp.status_code != 200:
-                        print(f"{prefix} HTTP {resp.status_code} — stopping")
-                        break
                     data = resp.json()
                     items = data.get("items", [])
                     if not items:
@@ -154,7 +188,7 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                                 session.add(MintEvent(
                                     token_id=token_id, nft_type=type_name,
                                     minter=from_addr, block_number=block,
-                                    timestamp=ts, enriched=False,
+                                    timestamp=ts, enriched=False, retry_count=0,
                                 ))
                                 await session.commit()
                                 new_count += 1
@@ -165,7 +199,7 @@ async def run_full_scan(nft_type: str = "all", limit_pages: int = 0):
                     if page_num % 20 == 0 or items_on_page % 500 < PAGE_LIMIT:
                         print(f"{prefix} Page {page_num:,} | "
                               f"Items: {items_on_page:,} | New: {new_count} | "
-                              f"{rate:.1f} pg/s")
+                              f"{rate:.1f} pg/s | Proxies: {proxy_pool.status()}")
 
                     await _save_sync_state(f"scan_{type_name}s_cursor", cursor_url)
                     await _save_sync_state(f"scan_{type_name}s_page", str(page_num))
@@ -193,7 +227,7 @@ async def run_enrichment(nft_type: str, batch_size: int = 30):
     """
     await _ensure_db_tables()
 
-    from db.database import NftMintLookup, async_session
+    from db.database import NftMintLookup, MintEvent, async_session
     from config import get_settings
     from services.proxy_pool import proxy_pool
     from services.combat_power_engine import CombatPowerEngine, _get_stat_total
@@ -201,6 +235,7 @@ async def run_enrichment(nft_type: str, batch_size: int = 30):
     settings = get_settings()
     prefix = f"[Enrich-{nft_type}]"
     proxy_pool.load()
+    print(f"{prefix} Proxy pool status: {proxy_pool.status()}")
 
     table = NftMintLookup
     snapshot_model = None
@@ -264,135 +299,172 @@ async def run_enrichment(nft_type: str, batch_size: int = 30):
 
 async def _enrich_single(client, token_id, minter, nft_type, settings,
                          snapshot_model, CombatPowerEngine, _get_stat_total, proxy_pool):
-    """Enrich a single NFT via Open API."""
+    """Enrich a single NFT via Open API with retry and proxy rotation."""
     if nft_type == "character":
         url = f"{settings.MSU_OPENAPI_BASE}/characters/by-token-id/{token_id}"
     else:
         url = f"{settings.MSU_OPENAPI_BASE}/items/by-token-id/{token_id}"
 
     headers = {"accept": "application/json", "x-nxopen-api-key": settings.MSU_OPENAPI_KEY}
-    proxy_url = proxy_pool.get_proxy()
-    extra = {"proxy": proxy_url} if proxy_url else {}
 
-    try:
-        resp = await client.get(url, headers=headers, timeout=30, **extra)
-        if resp.status_code == 429:
+    max_retries = 3
+    backoffs = [5, 15, 60]
+
+    for attempt in range(max_retries):
+        proxy_url = proxy_pool.get_proxy()
+        extra = {"proxy": proxy_url} if proxy_url else {}
+
+        try:
+            resp = await client.get(url, headers=headers, timeout=30, **extra)
+            if resp.status_code == 429:
+                if proxy_url:
+                    proxy_pool.report_failure(proxy_url, cooldown=30)
+                await asyncio.sleep(backoffs[min(attempt, len(backoffs)-1)])
+                continue
+            if resp.status_code != 200:
+                if proxy_url:
+                    proxy_pool.report_failure(proxy_url)
+                await asyncio.sleep(backoffs[min(attempt, len(backoffs)-1)])
+                continue
             if proxy_url:
-                proxy_pool.report_failure(proxy_url, cooldown=30)
-            await asyncio.sleep(10)
-            return None
-        if resp.status_code != 200:
-            if proxy_url:
-                proxy_pool.report_failure(proxy_url)
-            return None
-        if proxy_url:
-            proxy_pool.report_success(proxy_url)
+                proxy_pool.report_success(proxy_url)
 
-        body = resp.json()
-        if not body.get("success") or not body.get("data"):
-            return None
+            body = resp.json()
+            if not body.get("success") or not body.get("data"):
+                return None
 
-        data_obj = body["data"]
-        inner_key = "character" if nft_type == "character" else "item"
-        inner_data = data_obj.get(inner_key, data_obj)
+            data_obj = body["data"]
+            inner_key = "character" if nft_type == "character" else "item"
+            inner_data = data_obj.get(inner_key, data_obj)
 
-        import json
+            import json
 
-        if nft_type == "character":
-            from models.character import CharacterListing
-            from db.database import CharacterSnapshot, async_session
+            if nft_type == "character":
+                from models.character import CharacterListing
+                from db.database import CharacterSnapshot, async_session
 
-            char_obj = CharacterListing.from_openapi(inner_data)
-            ap = inner_data.get("apStat", {})
-            cp_val = CombatPowerEngine.calculate_cp(
-                primary_stat=_get_stat_total(ap, "str"),
-                secondary_stat=_get_stat_total(ap, "dex"),
-                total_att=max(_get_stat_total(ap, "pad"), _get_stat_total(ap, "attackPower"), _get_stat_total(ap, "mad")),
-                damage_pct=_get_stat_total(ap, "damage"),
-                boss_damage_pct=_get_stat_total(ap, "boss_monster_damage"),
-                crit_damage_pct=_get_stat_total(ap, "critical_damage"),
-                crit_damage_base=0.0,
-            )
+                char_obj = CharacterListing.from_openapi(inner_data)
+                ap = inner_data.get("apStat", {})
+                cp_val = CombatPowerEngine.calculate_cp(
+                    primary_stat=_get_stat_total(ap, "str"),
+                    secondary_stat=_get_stat_total(ap, "dex"),
+                    total_att=max(_get_stat_total(ap, "pad"), _get_stat_total(ap, "attackPower"), _get_stat_total(ap, "mad")),
+                    damage_pct=_get_stat_total(ap, "damage"),
+                    boss_damage_pct=_get_stat_total(ap, "boss_monster_damage"),
+                    crit_damage_pct=_get_stat_total(ap, "critical_damage"),
+                    crit_damage_base=0.0,
+                )
 
-            ap_stats = json.dumps(char_obj.ap_stats.model_dump(), ensure_ascii=False) if char_obj.ap_stats else None
+                ap_stats = json.dumps(char_obj.ap_stats.model_dump(), ensure_ascii=False) if char_obj.ap_stats else None
 
-            async with async_session() as session:
-                existing = (await session.execute(
-                    select(CharacterSnapshot).where(CharacterSnapshot.token_id == token_id)
-                )).scalar_one_or_none()
-                if existing:
-                    existing.combat_power = int(cp_val)
-                    existing.char_att = _get_stat_total(ap, "pad")
-                    existing.char_matt = _get_stat_total(ap, "mad")
-                    existing.name = char_obj.name or existing.name
-                    existing.class_name = char_obj.class_name or existing.class_name
-                    existing.level = char_obj.level or existing.level
-                else:
-                    session.add(CharacterSnapshot(
-                        token_id=token_id,
-                        asset_key=char_obj.asset_key,
-                        name=char_obj.name or "",
-                        class_name=char_obj.class_name,
-                        job_name=char_obj.job_name,
-                        level=char_obj.level or 0,
-                        combat_power=int(cp_val) if cp_val > 0 else 0,
-                        char_att=_get_stat_total(ap, "pad"),
-                        char_matt=_get_stat_total(ap, "mad"),
-                        ap_stats_json=ap_stats,
-                        image_url=char_obj.image_url,
-                        source="openapi",
-                    ))
-                await session.commit()
+                async with async_session() as session:
+                    existing = (await session.execute(
+                        select(CharacterSnapshot).where(CharacterSnapshot.token_id == token_id)
+                    )).scalar_one_or_none()
+                    if existing:
+                        existing.combat_power = int(cp_val)
+                        existing.char_att = _get_stat_total(ap, "pad")
+                        existing.char_matt = _get_stat_total(ap, "mad")
+                        existing.name = char_obj.name or existing.name
+                        existing.class_name = char_obj.class_name or existing.class_name
+                        existing.job_name = char_obj.job_name or existing.job_name
+                        existing.class_code = char_obj.class_code or existing.class_code
+                        existing.job_code = char_obj.job_code or existing.job_code
+                        existing.level = char_obj.level or existing.level
+                    else:
+                        session.add(CharacterSnapshot(
+                            token_id=token_id,
+                            asset_key=char_obj.asset_key,
+                            name=char_obj.name or "",
+                            class_name=char_obj.class_name,
+                            job_name=char_obj.job_name,
+                            class_code=char_obj.class_code,
+                            job_code=char_obj.job_code,
+                            level=char_obj.level or 0,
+                            combat_power=int(cp_val) if cp_val > 0 else 0,
+                            char_att=_get_stat_total(ap, "pad"),
+                            char_matt=_get_stat_total(ap, "mad"),
+                            ap_stats_json=ap_stats,
+                            image_url=char_obj.image_url,
+                            source="openapi",
+                        ))
+                    await session.commit()
 
-        else:
-            from models.item import ItemListing
-            from db.database import ItemSnapshot, async_session
+                # Update MintEvent enriched flag
+                async with async_session() as session:
+                    evt = (await session.execute(
+                        select(MintEvent).where(MintEvent.token_id == token_id)
+                    )).scalar_one_or_none()
+                    if evt and not evt.enriched:
+                        evt.enriched = True
+                        evt.retry_count = attempt
+                        await session.commit()
 
-            item_obj = ItemListing.from_openapi(inner_data)
-            enh = inner_data.get("enhance", {})
-            sf = enh.get("starforce", {}).get("enhanced", 0) or 0
-            stats = json.dumps(item_obj.stats.model_dump(), ensure_ascii=False) if item_obj.stats else None
+            else:
+                from models.item import ItemListing
+                from db.database import ItemSnapshot, async_session
 
-            pg = 0
-            bpg = 0
-            try:
-                if enh.get("potential"):
-                    pg = enh["potential"].get("option1", {}).get("grade", 0) or 0
-                if enh.get("bonusPotential"):
-                    bpg = enh["bonusPotential"].get("option1", {}).get("grade", 0) or 0
-            except Exception:
-                pass
+                item_obj = ItemListing.from_openapi(inner_data)
+                enh = inner_data.get("enhance", {})
+                sf = enh.get("starforce", {}).get("enhanced", 0) or 0
+                stats = json.dumps(item_obj.stats.model_dump(), ensure_ascii=False) if item_obj.stats else None
 
-            async with async_session() as session:
-                existing = (await session.execute(
-                    select(ItemSnapshot).where(ItemSnapshot.token_id == token_id)
-                )).scalar_one_or_none()
-                if existing:
-                    existing.starforce = sf
-                    existing.potential_grade = pg
-                else:
-                    session.add(ItemSnapshot(
-                        token_id=token_id,
-                        asset_key=inner_data.get("assetKey"),
-                        name=item_obj.name or "",
-                        category_no=item_obj.category_no,
-                        category_label=item_obj.category_label,
-                        item_id=item_obj.item_id,
-                        starforce=sf,
-                        enable_starforce=item_obj.enable_starforce,
-                        potential_grade=pg,
-                        bonus_potential_grade=bpg,
-                        stats_json=stats,
-                        image_url=item_obj.image_url,
-                        source="openapi",
-                    ))
-                await session.commit()
+                pg = 0
+                bpg = 0
+                try:
+                    if enh.get("potential"):
+                        pg = enh["potential"].get("option1", {}).get("grade", 0) or 0
+                    if enh.get("bonusPotential"):
+                        bpg = enh["bonusPotential"].get("option1", {}).get("grade", 0) or 0
+                except Exception:
+                    pass
 
-        return True
+                async with async_session() as session:
+                    existing = (await session.execute(
+                        select(ItemSnapshot).where(ItemSnapshot.token_id == token_id)
+                    )).scalar_one_or_none()
+                    if existing:
+                        existing.starforce = sf
+                        existing.potential_grade = pg
+                    else:
+                        session.add(ItemSnapshot(
+                            token_id=token_id,
+                            asset_key=inner_data.get("assetKey"),
+                            name=item_obj.name or "",
+                            category_no=item_obj.category_no,
+                            category_label=item_obj.category_label,
+                            item_id=item_obj.item_id,
+                            starforce=sf,
+                            enable_starforce=item_obj.enable_starforce,
+                            potential_grade=pg,
+                            bonus_potential_grade=bpg,
+                            stats_json=stats,
+                            image_url=item_obj.image_url,
+                            source="openapi",
+                        ))
+                    await session.commit()
 
-    except Exception as e:
-        print(f"  [{nft_type} ERR] {token_id}: {e}")
-        return None
+            return True
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"  [{nft_type} RETRY {attempt+1}/{max_retries}] {token_id}: {e}")
+                await asyncio.sleep(backoffs[attempt])
+            else:
+                print(f"  [{nft_type} ERR] {token_id} after {max_retries} retries: {e}")
+                # Mark retry_count on MintEvent
+                try:
+                    async with async_session() as session:
+                        evt = (await session.execute(
+                            select(MintEvent).where(MintEvent.token_id == token_id)
+                        )).scalar_one_or_none()
+                        if evt:
+                            evt.retry_count = max_retries
+                            await session.commit()
+                except Exception:
+                    pass
+
+    return None
 
 
 # ── 3. Live Mint Watchers ───────────────────────────────────────────────
@@ -436,45 +508,51 @@ async def run_mint_watcher(nft_type: str, poll_interval: int = 5):
                     await asyncio.sleep(poll_interval)
                     continue
 
-                # Fetch Transfer(from=0x0) logs
-                payload = {
-                    "jsonrpc": "2.0",
-                    "method": "eth_getLogs",
-                    "params": [{
-                        "address": contract,
-                        "topics": [TRANSFER_TOPIC, "0x" + "0" * 64],
-                        "fromBlock": hex(last_block + 1),
-                        "toBlock": hex(head),
-                    }],
-                    "id": 1,
-                }
-                r = await client.post(RPC_URL, json=payload, timeout=20.0)
-                logs = r.json().get("result", []) or []
+                # Fetch Transfer(from=0x0) logs — batch up to 1000 blocks per request
+                from_block = last_block + 1
+                while from_block <= head:
+                    to_block = min(from_block + 999, head)
 
-                for log in logs:
-                    topics = log.get("topics", [])
-                    if len(topics) != 4:
-                        continue
-                    token_id = str(int(topics[3], 16))
-                    minter = "0x" + topics[2][2:].lower().zfill(40)[-40:]
-                    block_num = int(log.get("blockNumber", "0x0"), 16)
+                    payload = {
+                        "jsonrpc": "2.0",
+                        "method": "eth_getLogs",
+                        "params": [{
+                            "address": contract,
+                            "topics": [TRANSFER_TOPIC, "0x" + "0" * 64],
+                            "fromBlock": hex(from_block),
+                            "toBlock": hex(to_block),
+                        }],
+                        "id": 1,
+                    }
+                    r = await client.post(RPC_URL, json=payload, timeout=20.0)
+                    logs = r.json().get("result", []) or []
 
-                    async with async_session() as session:
-                        exists = (await session.execute(
-                            select(NftMintLookup.id).where(NftMintLookup.token_id == token_id)
-                        )).scalar_one_or_none()
-                        if not exists:
-                            session.add(NftMintLookup(
-                                token_id=token_id, nft_type=nft_type,
-                                minter=minter, block_number=block_num,
-                            ))
-                            session.add(MintEvent(
-                                token_id=token_id, nft_type=nft_type,
-                                minter=minter, block_number=block_num,
-                                timestamp=int(time.time()), enriched=False,
-                            ))
-                            await session.commit()
-                            print(f"{prefix} NEW MINT: {token_id} | minter: {minter[:10]}...")
+                    for log in logs:
+                        topics = log.get("topics", [])
+                        if len(topics) != 4:
+                            continue
+                        token_id = str(int(topics[3], 16))
+                        minter = "0x" + topics[2][2:].lower().zfill(40)[-40:]
+                        block_num = int(log.get("blockNumber", "0x0"), 16)
+
+                        async with async_session() as session:
+                            exists = (await session.execute(
+                                select(NftMintLookup.id).where(NftMintLookup.token_id == token_id)
+                            )).scalar_one_or_none()
+                            if not exists:
+                                session.add(NftMintLookup(
+                                    token_id=token_id, nft_type=nft_type,
+                                    minter=minter, block_number=block_num,
+                                ))
+                                session.add(MintEvent(
+                                    token_id=token_id, nft_type=nft_type,
+                                    minter=minter, block_number=block_num,
+                                    timestamp=int(time.time()), enriched=False, retry_count=0,
+                                ))
+                                await session.commit()
+                                print(f"{prefix} NEW MINT: {token_id} | minter: {minter[:10]}...")
+
+                    from_block = to_block + 1
 
                 last_block = head
                 await _save_sync_state(f"watch_{nft_type}s_last_block", str(head))

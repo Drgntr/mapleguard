@@ -217,3 +217,47 @@ export function useRecentMints(nftType?: string, limit = 50) {
     refreshInterval: 30000,
   });
 }
+
+// --- Job Leaderboard Hooks ---
+
+export function useJobsList() {
+  return useSWR<JobInfo[]>("/api/leaderboard/jobs", fetcher, {
+    refreshInterval: 120000,
+  });
+}
+
+export function useJobLeaderboard(jobName?: string, limit = 100) {
+  const url = jobName
+    ? `/api/leaderboard/job/${encodeURIComponent(jobName)}?limit=${limit}`
+    : `/api/leaderboard/job?limit=${limit}`;
+  return useSWR<JobLeaderboardData>(url, fetcher, {
+    refreshInterval: 60000,
+  });
+}
+
+export interface JobInfo {
+  job_name: string;
+  count: number;
+  max_cp: number;
+  class_name: string;
+}
+
+export interface JobLeaderboardEntry {
+  token_id: string;
+  name: string;
+  class_name: string;
+  job_name: string;
+  level: number;
+  combat_power: number;
+  char_att: number;
+  char_matt: number;
+  image_url: string | null;
+  source: string;
+}
+
+export interface JobLeaderboardData {
+  job_name: string;
+  top10: JobLeaderboardEntry[];
+  all: JobLeaderboardEntry[];
+  total: number;
+}

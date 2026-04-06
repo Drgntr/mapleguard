@@ -184,3 +184,26 @@ async def top_farmers(limit: int = Query(20, ge=1, le=100)):
         return {"farmers": data["top_farmers"][:limit]}
     except Exception:
         return {"farmers": []}
+
+
+# ── Job leaderboards ──────────────────────────────────────────────────
+
+@router.get("/jobs")
+async def list_jobs():
+    """All known jobs with character counts and max CP."""
+    return await leaderboard_db_service.list_jobs()
+
+
+@router.get("/job")
+async def job_leaderboard(limit: int = Query(100, ge=1, le=200)):
+    """Combined leaderboard across all jobs."""
+    return await leaderboard_db_service.get_job_leaderboard(limit=limit)
+
+
+@router.get("/job/{job_name}")
+async def job_leaderboard_by_name(
+    job_name: str,
+    limit: int = Query(100, ge=1, le=200),
+):
+    """Top 10 highlighted + full list up to limit for a specific job."""
+    return await leaderboard_db_service.get_job_leaderboard(job_name=job_name, limit=limit)
