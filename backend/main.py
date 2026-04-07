@@ -44,7 +44,7 @@ async def lifespan(app: FastAPI):
                     await refresh_all_fair_values()
                 except Exception as e:
                     print(f"[FairValueLoop] Error: {e}")
-                await asyncio.sleep(120)
+                await asyncio.sleep(300)  # 5 min instead of 2
         tasks.append(asyncio.create_task(fair_value_loop()))
         print("[START] All leaderboard + scanner tasks launched!")
 

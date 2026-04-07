@@ -182,8 +182,8 @@ async def floor_prices():
     if cached:
         return cached
 
-    # Fetch more pages for accurate floors
-    all_chars = await market_data_service.fetch_all_characters(max_pages=6)
+    # Fetch 3 pages for accurate floors (6 was too heavy)
+    all_chars = await market_data_service.fetch_all_characters(max_pages=3)
 
     def get_bracket(lv: int) -> str:
         current = "0"
@@ -195,9 +195,6 @@ async def floor_prices():
         return current
 
     groups: dict[str, dict[str, list[float]]] = {}
-    # Per-character level+price data for interpolation
-    listings_by_class: dict[str, list[dict]] = {}
-    class_counts: dict[str, int] = {}
 
     for char in all_chars:
         if char.price <= 0:
@@ -205,19 +202,12 @@ async def floor_prices():
         cls = char.class_name or "Unknown"
         bracket = get_bracket(char.level)
 
-        class_counts[cls] = class_counts.get(cls, 0) + 1
-
         if cls not in groups:
             groups[cls] = {}
         if bracket not in groups[cls]:
             groups[cls][bracket] = []
         groups[cls][bracket].append(char.price)
 
-        if cls not in listings_by_class:
-            listings_by_class[cls] = []
-        listings_by_class[cls].append({"level": char.level, "price": char.price})
-
-    # Build enriched floor map
     floors: dict[str, dict[str, dict]] = {}
     for cls, brackets in groups.items():
         floors[cls] = {}
@@ -238,12 +228,10 @@ async def floor_prices():
 
     result = {
         "floor_prices": floors,
-        "listings": listings_by_class,
-        "class_counts": class_counts,
         "sample_size": len(all_chars),
         "thresholds": FLOOR_THRESHOLDS
     }
-    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG)
+    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG * 2)
     return result
 
 @router.get("/search")
