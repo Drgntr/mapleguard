@@ -118,6 +118,7 @@ class CharacterListing(BaseModel):
     equipped_items: list[EquippedItem] = []
     mintable_count: int = 0
     hyper_stats: dict[str, int] = {}
+    ability_grades: list[int] = []
     char_cp: Optional[float] = 0.0
     char_att: Optional[float] = 0.0
     char_matt: Optional[float] = 0.0
@@ -322,6 +323,13 @@ class CharacterListing(BaseModel):
             if isinstance(v, dict) and "level" in v
         }
 
+        # Parse Ability Grades
+        ability_block = char.get("ability", {})
+        ability_grades = []
+        for k in ["ability1", "ability2", "ability3"]:
+            g = ability_block.get(k, {}).get("grade", 0) or 0
+            ability_grades.append(g)
+
         return CharacterListing(
             token_id=str(data.get("tokenId", "") or data.get("assetKey", "")),
             name=data.get("name") or data.get("characterName") or common.get("nickname") or common.get("name") or "",
@@ -339,6 +347,7 @@ class CharacterListing(BaseModel):
             equipped_items=equipped,
             mintable_count=mintable_count,
             hyper_stats=hyper_stats,
+            ability_grades=ability_grades,
         )
 
     @staticmethod

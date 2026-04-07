@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     INDEXER_START_BLOCK: int = 0
     INDEXER_POLL_INTERVAL: int = 2
 
+    # Proxy (optional, for faster enrichment)
+    ENRICH_PROXY: str = ""
+
     # Anomaly Detection
     WASH_TRADE_WINDOW_SECONDS: int = 3600
     WASH_TRADE_MIN_TXNS: int = 3

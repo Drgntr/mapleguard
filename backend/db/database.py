@@ -295,6 +295,69 @@ class MintEvent(Base):
     )
 
 
+class CharacterMarketStatus(Base):
+    """Market-scoped character listing with enriched attributes and fair value."""
+    __tablename__ = "character_market_status"
+
+    token_id: Mapped[str] = mapped_column(String, primary_key=True)
+    asset_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    name: Mapped[str] = mapped_column(String, default="")
+    class_name: Mapped[str] = mapped_column(String, default="")
+    job_name: Mapped[str] = mapped_column(String, default="")
+    level: Mapped[int] = mapped_column(Integer, default=0)
+    price: Mapped[float] = mapped_column(Float, default=0.0)
+    # Enriched attributes
+    arcane_force: Mapped[int] = mapped_column(Integer, default=0)
+    arcane_set_tier: Mapped[str] = mapped_column(String, default="none")
+    ability_grades: Mapped[str] = mapped_column(String, default="[0,0,0]")
+    ability_total: Mapped[int] = mapped_column(Integer, default=0)
+    weapon_starforce: Mapped[int] = mapped_column(Integer, default=0)
+    weapon_potential_grade: Mapped[int] = mapped_column(Integer, default=0)
+    gear_score: Mapped[float] = mapped_column(Float, default=0.0)
+    equipped_item_ids_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Fair value
+    fair_value: Mapped[float] = mapped_column(Float, default=0.0)
+    fair_breakdown: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    confidence: Mapped[str] = mapped_column(String, default="low")
+    # State
+    status: Mapped[str] = mapped_column(String, default="pending")
+    price_change_pct: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    listed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    scanned_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_char_ms_class_level", "class_name", "level"),
+        Index("ix_char_ms_arcane_tier", "arcane_set_tier"),
+        Index("ix_char_ms_status", "status"),
+        Index("ix_char_ms_fair_value", "fair_value"),
+    )
+
+
+class CharacterSaleHistory(Base):
+    """All character sales captured via RPC OrderMatched events."""
+    __tablename__ = "character_sale_history"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    tx_hash: Mapped[str] = mapped_column(String, index=True)
+    buyer: Mapped[str] = mapped_column(String)
+    seller: Mapped[str] = mapped_column(String)
+    price: Mapped[float] = mapped_column(Float)
+    sale_date: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    # Enriched snapshot at time of sale
+    token_id: Mapped[str] = mapped_column(String, default="")
+    class_name: Mapped[str] = mapped_column(String, default="")
+    level: Mapped[int] = mapped_column(Integer, default=0)
+    arcane_force: Mapped[int] = mapped_column(Integer, default=0)
+    ability_total: Mapped[int] = mapped_column(Integer, default=0)
+    gear_score: Mapped[float] = mapped_column(Float, default=0.0)
+
+    __table_args__ = (
+        Index("ix_sale_class_level", "class_name", "level"),
+        Index("ix_sale_date", "sale_date"),
+    )
+
+
 async def get_db() -> AsyncSession:
     async with async_session() as session:
         yield session

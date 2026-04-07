@@ -1,10 +1,24 @@
+import json
 from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
+from sqlalchemy import select, func
 from typing import Optional
 
 from services.market_data import market_data_service
 from services.cache import cache_get, cache_set
+from db.database import async_session, CharacterMarketStatus, CharacterSaleHistory
 from config import get_settings
+
+
+def json_loads(val):
+    if val is None:
+        return []
+    if isinstance(val, str):
+        try:
+            return json.loads(val)
+        except Exception:
+            return []
+    return val
 
 settings = get_settings()
 router = APIRouter(prefix="/api/characters", tags=["Characters"])
@@ -33,76 +47,59 @@ async def list_characters(
         chars = [c for c in chars if c.job_name and job_filter.lower() in c.job_name.lower()]
         total_count = len(chars)
 
-    # Enrich with fair value estimates using linear regression per class
-    cache_key = "floor_prices_v3"
-    cached = await cache_get(cache_key)
-    listings = (cached or {}).get("listings", {}) if cached else {}
-    buckets = (cached or {}).get("floor_prices", {}) if cached else {}
-
-    # Pre-compute linear regression (price ~ level) for each class
-    regressions: dict = {}
-    for cls, char_list in listings.items():
-        if not isinstance(char_list, list) or len(char_list) < 2:
-            continue
-        n = 0
-        sum_x = 0.0
-        sum_y = 0.0
-        sum_xy = 0.0
-        sum_x2 = 0.0
-        for c in char_list:
-            lv = c.get("level", 0)
-            pr = c.get("price", 0)
-            if pr <= 0 or lv <= 0:
-                continue
-            n += 1
-            sum_x += lv
-            sum_y += pr
-            sum_xy += lv * pr
-            sum_x2 += lv * lv
-        if n >= 2:
-            denom = n * sum_x2 - sum_x * sum_x
-            if denom != 0:
-                slope = (n * sum_xy - sum_x * sum_y) / denom
-                intercept = (sum_y - slope * sum_x) / n
-                regressions[cls] = {
-                    "slope": slope,
-                    "intercept": intercept,
-                    "n": n,
-                    "mean_price": sum_y / n,
-                    "mean_level": sum_x / n,
+    # Enrich with fair value from DB (computed by char_fair_value engine)
+    enriched_map = {}
+    try:
+        from sqlalchemy import select
+        async with async_session() as session:
+            stmt = select(CharacterMarketStatus).where(
+                CharacterMarketStatus.status.in_(["enriched", "pending"])
+            )
+            rows = (await session.execute(stmt)).scalars().all()
+            for r in rows:
+                enriched_map[r.token_id] = {
+                    "fair_value": r.fair_value,
+                    "confidence": r.confidence,
+                    "arcane_tier": r.arcane_set_tier,
+                    "ability_total": r.ability_total,
+                    "gear_score": r.gear_score,
                 }
+    except Exception:
+        pass  # DB not ready or no enriched data yet
 
-    def _get_fair(char):
-        """
-        Fair value = linear regression prediction (price ~ level) for class.
-        Distinct from bucket-based VS FLOOR — uses all listings to model
-        the price trend, not just the lowest price in a bracket.
-        """
-        cls = char.class_name
-        lv = char.level
+    # Compute median price per class from current listings for fallback
+    class_medians: dict[str, float] = {}
+    for c in chars:
+        if c.price > 0:
+            cls = c.class_name
+            if cls not in class_medians:
+                class_medians[cls] = []
+            class_medians[cls].append(c.price)
+    for cls in class_medians:
+        prices = sorted(class_medians[cls])
+        class_medians[cls] = prices[len(prices) // 2]
 
-        reg = regressions.get(cls)
-        if reg and reg["n"] >= 2:
-            predicted = reg["intercept"] + reg["slope"] * lv
-            mean_p = reg["mean_price"]
-            predicted = max(predicted, mean_p * 0.3)
-            predicted = min(predicted, mean_p * 3.0)
-            if predicted > 0:
-                return round(predicted, 2)
-
-        raw = listings.get(cls, [])
-        if raw:
-            prices = sorted([x["price"] for x in raw if x.get("price", 0) > 0])
-            if prices:
-                return round(prices[len(prices) // 2], 2)
-
-        return 0
+    def _get_fair_fallback(char):
+        """Fallback: median price for same class."""
+        return class_medians.get(char.class_name, 0)
 
     result = []
     for c in chars:
         d = c.model_dump()
-        fair = _get_fair(c)
-        d["fair_value_estimate"] = fair
+
+        # Try enriched fair value first (from DB engine)
+        if c.token_id in enriched_map:
+            ev = enriched_map[c.token_id]
+            d["fair_value_estimate"] = ev["fair_value"]
+            d["fair_confidence"] = ev["confidence"]
+            d["arcane_tier"] = ev["arcane_tier"]
+            d["ability_total"] = ev["ability_total"]
+        else:
+            d["fair_value_estimate"] = _get_fair_fallback(c)
+            d["fair_confidence"] = "none"
+            d["arcane_tier"] = "unknown"
+            d["ability_total"] = 0
+
         result.append(d)
 
     return {
@@ -312,3 +309,169 @@ async def character_detail(token_id: str):
         content={"character": char_dict},
         headers={"Cache-Control": "no-store, no-cache, must-revalidate, max-age=0"},
     )
+
+
+@router.get("/enriched-listings")
+async def enriched_listings(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    sort: str = Query("fair_vs_price"),
+    class_filter: str = Query(""),
+    status_filter: str = Query("enriched"),
+):
+    """Paginated enriched listings with fair value."""
+    async with async_session() as session:
+        filters = []
+        if class_filter and class_filter != "all_classes":
+            filters.append(CharacterMarketStatus.class_name == class_filter)
+        if status_filter:
+            statuses = status_filter.split(",")
+            filters.append(CharacterMarketStatus.status.in_(statuses))
+
+        count_stmt = select(func.count(CharacterMarketStatus.token_id))
+        if filters:
+            count_stmt = count_stmt.where(*filters)
+        total = (await session.execute(count_stmt)).scalar_one()
+
+        # Build query with sorting
+        stmt = select(CharacterMarketStatus)
+        if filters:
+            stmt = stmt.where(*filters)
+
+        if sort == "fair_vs_price":
+            # Cheapest relative to fair value first
+            from sqlalchemy import case
+            stmt = stmt.where(
+                CharacterMarketStatus.fair_value > 0,
+                CharacterMarketStatus.price > 0,
+            ).order_by(
+                (CharacterMarketStatus.price / CharacterMarketStatus.fair_value).asc()
+            )
+        elif sort == "price_asc":
+            stmt = stmt.order_by(CharacterMarketStatus.price.asc())
+        elif sort == "price_desc":
+            stmt = stmt.order_by(CharacterMarketStatus.price.desc())
+        elif sort == "level_asc":
+            stmt = stmt.order_by(CharacterMarketStatus.level.asc())
+        elif sort == "level_desc":
+            stmt = stmt.order_by(CharacterMarketStatus.level.desc())
+        elif sort == "gear_desc":
+            stmt = stmt.order_by(CharacterMarketStatus.gear_score.desc())
+        else:
+            stmt = stmt.order_by(CharacterMarketStatus.scanned_at.desc())
+
+        offset = (page - 1) * page_size
+        stmt = stmt.limit(page_size).offset(offset)
+        rows = (await session.execute(stmt)).scalars().all()
+
+    result = []
+    for r in rows:
+        d = {
+            "token_id": r.token_id,
+            "asset_key": r.asset_key,
+            "name": r.name,
+            "class_name": r.class_name,
+            "job_name": r.job_name,
+            "level": r.level,
+            "price": r.price,
+            "arcane_force": r.arcane_force,
+            "arcane_set_tier": r.arcane_set_tier,
+            "ability_grades": json_loads(r.ability_grades),
+            "ability_total": r.ability_total,
+            "weapon_starforce": r.weapon_starforce,
+            "weapon_potential_grade": r.weapon_potential_grade,
+            "gear_score": r.gear_score,
+            "fair_value": r.fair_value,
+            "fair_breakdown": json_loads(r.fair_breakdown) if r.fair_breakdown else {},
+            "confidence": r.confidence,
+            "status": r.status,
+            "price_change_pct": r.price_change_pct,
+            "listed_at": str(r.listed_at) if r.listed_at else None,
+        }
+        if r.fair_value > 0 and r.price > 0:
+            d["fair_vs_floor"] = round((r.price - r.fair_value) / r.fair_value * 100, 2)
+        else:
+            d["fair_vs_floor"] = None
+        result.append(d)
+
+    return {
+        "listings": result,
+        "page": page,
+        "page_size": page_size,
+        "total": total,
+    }
+
+
+@router.get("/enriched/{token_id}")
+async def enriched_detail(token_id: str):
+    """Single enriched listing detail with full fair breakdown."""
+    async with async_session() as session:
+        stmt = select(CharacterMarketStatus).where(
+            CharacterMarketStatus.token_id == token_id
+        )
+        row = (await session.execute(stmt)).scalar_one_or_none()
+
+    if not row:
+        return {"error": "Not found", "token_id": token_id}
+
+    breakdown = {}
+    if row.fair_breakdown:
+        breakdown = json_loads(row.fair_breakdown)
+
+    return {
+        "token_id": row.token_id,
+        "asset_key": row.asset_key,
+        "name": row.name,
+        "class_name": row.class_name,
+        "job_name": row.job_name,
+        "level": row.level,
+        "price": row.price,
+        "arcane_force": row.arcane_force,
+        "arcane_set_tier": row.arcane_set_tier,
+        "ability_grades": json_loads(row.ability_grades),
+        "ability_total": row.ability_total,
+        "weapon_starforce": row.weapon_starforce,
+        "weapon_potential_grade": row.weapon_potential_grade,
+        "gear_score": row.gear_score,
+        "equipped_items": json_loads(row.equipped_item_ids_json) if row.equipped_item_ids_json else [],
+        "fair_value": row.fair_value,
+        "fair_breakdown": breakdown,
+        "confidence": row.confidence,
+        "status": row.status,
+        "price_change_pct": row.price_change_pct,
+        "listed_at": str(row.listed_at) if row.listed_at else None,
+    }
+
+
+@router.get("/recent-sales")
+async def recent_sales(
+    limit: int = Query(50, ge=1, le=200),
+    class_filter: str = Query(""),
+):
+    """Recent character sales with enriched snapshots."""
+    async with async_session() as session:
+        stmt = select(CharacterSaleHistory).order_by(
+            CharacterSaleHistory.sale_date.desc()
+        ).limit(limit)
+        if class_filter and class_filter != "all_classes":
+            stmt = stmt.where(CharacterSaleHistory.class_name == class_filter)
+        rows = (await session.execute(stmt)).scalars().all()
+
+    return {
+        "sales": [
+            {
+                "tx_hash": r.tx_hash,
+                "buyer": r.buyer,
+                "seller": r.seller,
+                "price": r.price,
+                "sale_date": str(r.sale_date),
+                "token_id": r.token_id,
+                "class_name": r.class_name,
+                "level": r.level,
+                "arcane_force": r.arcane_force,
+                "ability_total": r.ability_total,
+                "gear_score": r.gear_score,
+            }
+            for r in rows
+        ]
+    }

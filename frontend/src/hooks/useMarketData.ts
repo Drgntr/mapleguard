@@ -238,3 +238,64 @@ export interface JobLeaderboardData {
   all: JobLeaderboardEntry[];
   total: number;
 }
+
+// --- Character Enriched Listing Hooks ---
+
+export interface EnrichedCharListing {
+  token_id: string;
+  asset_key: string | null;
+  name: string;
+  class_name: string;
+  job_name: string;
+  level: number;
+  price: number;
+  arcane_force: number;
+  arcane_set_tier: string;
+  ability_grades: number[];
+  ability_total: number;
+  weapon_starforce: number;
+  weapon_potential_grade: number;
+  gear_score: number;
+  fair_value: number;
+  fair_breakdown: Record<string, unknown>;
+  confidence: string;
+  status: string;
+  price_change_pct: number | null;
+  fair_vs_floor: number | null;
+  listed_at: string | null;
+}
+
+export function useEnrichedListings(
+  page = 1,
+  pageSize = 50,
+  sort = "fair_vs_price",
+  classFilter = "",
+  statusFilter = "enriched"
+) {
+  return useSWR<{
+    listings: EnrichedCharListing[];
+    page: number;
+    page_size: number;
+    total: number;
+  }>(
+    `/api/characters/enriched-listings?page=${page}&page_size=${pageSize}&sort=${sort}&class_filter=${encodeURIComponent(classFilter)}&status_filter=${statusFilter}`,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+}
+
+export function useEnrichedCharDetail(tokenId: string | null) {
+  return useSWR(
+    tokenId ? `/api/characters/enriched/${tokenId}` : null,
+    fetcher,
+    { revalidateOnFocus: true, dedupingInterval: 5000 }
+  );
+}
+
+export function useRecentSales(limit = 50, classFilter = "") {
+  return useSWR(
+    `/api/characters/recent-sales?limit=${limit}&class_filter=${encodeURIComponent(classFilter)}`,
+    fetcher,
+    { refreshInterval: 30000 }
+  );
+}

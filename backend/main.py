@@ -17,7 +17,8 @@ if _enable_services:
     from services.leaderboard_manager import (
         scan_all_task, enrich_chars_task, watch_chars_task,
     )
-    print("[START] Leaderboard services imported OK")
+    from services.char_market_scanner import char_market_scanner
+    print("[START] Leaderboard + CharScanner services imported OK")
 
 
 @asynccontextmanager
@@ -29,12 +30,23 @@ async def lifespan(app: FastAPI):
 
     if _enable_services:
         from services.leaderboard_manager import re_enrich_task
+        from services.char_fair_value import refresh_all_fair_values
         print("[START] Launching leaderboard pipeline...")
         tasks.append(asyncio.create_task(scan_all_task()))
         tasks.append(asyncio.create_task(enrich_chars_task(batch_size=5)))
         tasks.append(asyncio.create_task(watch_chars_task()))
         tasks.append(asyncio.create_task(re_enrich_task()))
-        print("[START] All leaderboard tasks launched!")
+        print("[START] Launching character market scanner...")
+        tasks.append(asyncio.create_task(char_market_scanner.run()))
+        async def fair_value_loop():
+            while True:
+                try:
+                    await refresh_all_fair_values()
+                except Exception as e:
+                    print(f"[FairValueLoop] Error: {e}")
+                await asyncio.sleep(120)
+        tasks.append(asyncio.create_task(fair_value_loop()))
+        print("[START] All leaderboard + scanner tasks launched!")
 
     yield
 

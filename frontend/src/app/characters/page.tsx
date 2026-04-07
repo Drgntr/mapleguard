@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useCharacters, useFloorPrices, useCharacterDetail } from "@/hooks/useMarketData";
+import { useCharacters, useFloorPrices, useCharacterDetail, useEnrichedListings, useEnrichedCharDetail, useRecentSales } from "@/hooks/useMarketData";
 
 const CLASS_COLORS: Record<string, string> = {
   Archer: "text-terminal-green",
@@ -28,7 +28,47 @@ const SUBCLASSES: Record<string, string[]> = {
   Pirate: ["Buccaneer", "Corsair", "Cannon Master", "Thunder Breaker", "Shade", "Mechanic", "Angelic Buster", "Ark"],
 };
 
-const FLOOR_LEVELS = [65, 120, 140, 160, 200, 220, 230, 240];
+const FLOOR_LEVELS = [65, 120, 140, 160, 170, 180, 190, 200, 210, 220, 230, 240];
+
+const ARCANE_TIER_COLORS: Record<string, string> = {
+  none: "text-terminal-muted",
+  absolab: "text-terminal-text",
+  arcane_umbra: "text-terminal-yellow",
+  arcane_full: "text-terminal-green",
+  genesis_partial: "text-terminal-cyan",
+  genesis_full: "text-terminal-green",
+  eternal_partial: "text-terminal-purple",
+  eternal_full: "text-terminal-purple",
+};
+
+const ARCANE_BG: Record<string, string> = {
+  none: "bg-white/5 border-white/10",
+  absolab: "bg-terminal-text/10 border-terminal-text/20",
+  arcane_umbra: "bg-terminal-yellow/10 border-terminal-yellow/20",
+  arcane_full: "bg-terminal-green/10 border-terminal-green/20",
+  genesis_partial: "bg-terminal-cyan/10 border-terminal-cyan/20",
+  genesis_full: "bg-terminal-green/10 border-terminal-green/20",
+  eternal_partial: "bg-terminal-purple/10 border-terminal-purple/20",
+  eternal_full: "bg-terminal-purple/10 border-terminal-purple/20",
+};
+
+function abilityColor(total: number): string {
+  if (total >= 12) return "text-terminal-red font-black";
+  if (total >= 8) return "text-terminal-yellow font-bold";
+  if (total >= 4) return "text-terminal-cyan";
+  return "text-terminal-muted";
+}
+
+function arcaneBadge(tier: string): string {
+  const label = tier.replace("_", " ").toUpperCase();
+  return (
+    <span
+      className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${ARCANE_BG[tier] || "bg-white/5"} ${ARCANE_TIER_COLORS[tier] || "text-terminal-muted"}`}
+    >
+      {label}
+    </span>
+  );
+}
 
 export default function CharactersPage() {
   const [page, setPage] = useState(1);
@@ -37,17 +77,31 @@ export default function CharactersPage() {
   const [levelMin, setLevelMin] = useState(0);
   const [levelMax, setLevelMax] = useState(300);
   const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  const [view, setView] = useState<"explore" | "underpriced" | "recent-sales">("underpriced");
+  const [sort, setSort] = useState("fair_vs_price");
 
-  // Fetch with full parameters
   const { data, isLoading } = useCharacters(page, 135, classFilter, jobFilter, levelMin, levelMax);
   const { data: floorData } = useFloorPrices();
   const { data: detailData } = useCharacterDetail(selectedTokenId);
 
+  // Enriched listing hooks
+  const charFilter = classFilter === "all_classes" ? "" : classFilter;
+  const { data: enrichedData, isLoading: enrichedLoading } = useEnrichedListings(
+    page, 135, sort, charFilter, view === "underpriced" ? "enriched" : ""
+  );
+  const { data: salesData } = useRecentSales(50, charFilter);
+
   const chars = data?.characters || [];
+  const enriched = enrichedData?.listings || [];
+  const enrichedTotal = enrichedData?.total || 0;
+  const sales = salesData?.sales || [];
   const floors = floorData?.floor_prices || {};
   const detail = detailData?.character;
 
   const currentSubclasses = classFilter === "all_classes" ? [] : SUBCLASSES[classFilter] || [];
+  const displayListings = view === "explore" ? chars : view === "recent-sales" ? sales : enriched;
+  const displayTotal = view === "explore" ? data?.count : enrichedTotal;
+  const displayLoading = view === "underpriced" ? enrichedLoading : isLoading;
 
   return (
     <div className="space-y-6">
@@ -70,6 +124,48 @@ export default function CharactersPage() {
 
       {/* Filters: Primary Class */}
       <div className="space-y-4">
+        {/* View Toggle */}
+        <div className="flex flex-wrap gap-2 items-center">
+          <span className="text-[10px] font-mono text-terminal-muted w-12">VIEW:</span>
+          {(["underpriced", "explore", "recent-sales"] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => { setView(v); setPage(1); }}
+              className={`px-3 py-1.5 text-xs font-mono rounded border transition-all ${view === v
+                ? "border-terminal-accent text-terminal-accent bg-terminal-accent/10"
+                : "border-terminal-border text-terminal-muted hover:text-terminal-text"
+                }`}
+            >
+              {v === "underpriced" ? "UNDERPRICED" : v === "explore" ? "EXPLORE ALL" : "RECENT SALES"}
+            </button>
+          ))}
+        </div>
+
+        {/* Sort buttons */}
+        {view !== "recent-sales" && (
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-[10px] font-mono text-terminal-muted w-12">SORT:</span>
+            {[
+              ["fair_vs_price", "FAIR %"],
+              ["price_asc", "PRICE ↑"],
+              ["price_desc", "PRICE ↓"],
+              ["level_asc", "LV ↑"],
+              ["gear_desc", "GEAR ↓"],
+            ].map(([k, l]) => (
+              <button
+                key={k}
+                onClick={() => { setSort(k); setPage(1); }}
+                className={`px-3 py-1.5 text-[11px] font-mono rounded border transition-all ${sort === k
+                  ? "border-terminal-accent text-terminal-accent bg-terminal-accent/10"
+                  : "border-terminal-border text-terminal-muted hover:text-terminal-text"
+                  }`}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2 items-center">
           <span className="text-[10px] font-mono text-terminal-muted w-16">CLASS:</span>
           {["all_classes", "Archer", "Magician", "Pirate", "Thief", "Warrior"].map(
@@ -156,57 +252,177 @@ export default function CharactersPage() {
         {/* Characters table */}
         <div className="xl:col-span-2 panel">
           <div className="panel-header">
-            <span className="panel-title">CHARACTER LISTINGS</span>
+            <span className="panel-title">
+              {view === "underpriced" ? "UNDERPRICED LISTINGS" : view === "recent-sales" ? "RECENT SALES" : "EXPLORER"}
+            </span>
             <span className="text-[10px] font-mono text-terminal-muted uppercase">
-              Page {page} of Result Set
+              {(view === "explore" ? data?.count : enrichedTotal)?.toLocaleString?.() || "0"} results
             </span>
           </div>
           <div className="max-h-[600px] overflow-y-auto">
-            {isLoading ? (
+            {displayLoading ? (
               <div className="p-12 text-center">
                 <div className="w-8 h-8 border-2 border-terminal-accent border-t-transparent animate-spin rounded-full mx-auto mb-4" />
-                <div className="text-terminal-accent font-mono text-xs uppercase tracking-widest animate-pulse">Scanning Protocols...</div>
+                <div className="text-terminal-accent font-mono text-xs uppercase tracking-widest animate-pulse">Loading...</div>
               </div>
-            ) : chars.length === 0 ? (
+            ) : displayListings.length === 0 ? (
               <div className="p-8 text-center text-terminal-muted font-mono text-sm uppercase">
                 Zero Matches Found In Archive
               </div>
+            ) : view === "recent-sales" ? (
+              <table className="data-table">
+                <thead className="sticky top-0 bg-terminal-panel z-10">
+                  <tr>
+                    <th>TOKEN ID</th>
+                    <th>NAME</th>
+                    <th>CLASS</th>
+                    <th>LEVEL</th>
+                    <th>SELL PRICE</th>
+                    <th>ARCANE</th>
+                    <th>ABILITY</th>
+                    <th>GEAR</th>
+                    <th>DATE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.map((sale: any) => (
+                    <tr key={sale.tx_hash} className="text-[11px]">
+                      <td className="text-terminal-muted font-mono text-[9px]">{sale.token_id?.slice(0, 10)}...</td>
+                      <td className="text-terminal-text font-medium">{sale.class_name}</td>
+                      <td>
+                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${CLASS_BG[sale.class_name] || "bg-white/5"} ${CLASS_COLORS[sale.class_name] || "text-white"}`}>
+                          {sale.class_name?.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className={`font-mono ${sale.level >= 240 ? "text-terminal-red font-bold" : "text-terminal-text"}`}>
+                        LV.{sale.level}
+                      </td>
+                      <td className="text-terminal-accent font-bold">{sale.price?.toLocaleString()}</td>
+                      <td className="text-terminal-muted">{sale.arcane_force}</td>
+                      <td className={abilityColor(sale.ability_total)}>{sale.ability_total}</td>
+                      <td className="text-terminal-text">{sale.gear_score?.toFixed(0)}</td>
+                      <td className="text-terminal-muted text-[10px]">{sale.sale_date?.split("T")[0]}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             ) : (
               <table className="data-table">
                 <thead className="sticky top-0 bg-terminal-panel z-10">
                   <tr>
                     <th>NAME</th>
                     <th>CLASS</th>
-                    <th>JOB</th>
                     <th>LEVEL</th>
-                    <th>PRICE (NESO)</th>
-                    <th>FAIR VALUE</th>
-                    <th>VS FLOOR</th>
+                    {view === "underpriced" ? (
+                      <>
+                        <th>ARCANE</th>
+                        <th>ABILITY</th>
+                        <th>PRICE (NESO)</th>
+                        <th>FAIR VALUE</th>
+                        <th>VS FAIR</th>
+                        <th>GEAR</th>
+                      </>
+                    ) : (
+                      <>
+                        <th>PRICE (NESO)</th>
+                        <th>EST. FAIR</th>
+                        <th>VS FLOOR</th>
+                      </>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
-                  {chars.map((char: any) => {
-                    // Logic to find closest floor bracket (closest lower or equal)
-                    let closestBracket = "0";
-                    for (const th of floorData?.thresholds || FLOOR_LEVELS) {
-                      if (char.level >= th) closestBracket = String(th);
-                      else break;
-                    }
-
-                    const floorEntry = floors[char.class_name]?.[closestBracket];
-                    const floorPrice = floorEntry?.min_price;
-                    const vsFloor =
-                      floorPrice && char.price > 0
-                        ? ((char.price - floorPrice) / floorPrice) * 100
+                  {view === "underpriced" ? enriched.map((char: any) => {
+                    const vsFair =
+                      char.fair_value > 0 && char.price > 0
+                        ? ((char.price - char.fair_value) / char.fair_value) * 100
                         : null;
-
                     return (
                       <tr
                         key={char.token_id}
                         className={`cursor-pointer transition-colors ${selectedTokenId === char.token_id
                           ? "bg-terminal-accent/5 border-l-2 border-l-terminal-accent"
                           : ""
-                          }`}
+                        }`}
+                        onClick={() => setSelectedTokenId(char.token_id)}
+                      >
+                        <td className="text-terminal-text font-medium max-w-[180px] truncate">
+                          {char.asset_key ? (
+                            <a
+                              href={`https://msu.io/navigator/character/${char.asset_key}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline hover:text-terminal-accent"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {char.name}
+                            </a>
+                          ) : char.name}
+                        </td>
+                        <td>
+                          <span className={`text-[10px] font-mono font-black tracking-tighter px-1.5 py-0.5 rounded ${CLASS_BG[char.class_name] || "bg-white/5"} ${CLASS_COLORS[char.class_name] || "text-white"}`}>
+                            {char.class_name?.toUpperCase()}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`font-mono text-xs ${char.level >= 240 ? "text-terminal-red font-black" : char.level >= 200 ? "text-terminal-yellow font-bold" : "text-terminal-text"}`}>
+                            LV.{char.level}
+                          </span>
+                        </td>
+                        <td>{char.arcane_set_tier ? arcaneBadge(char.arcane_set_tier) : <span className="text-terminal-muted/50">—</span>}</td>
+                        <td className={abilityColor(char.ability_total)}>
+                          <span className="font-mono text-xs">{char.ability_total}</span>
+                        </td>
+                        <td className="text-terminal-accent font-bold tabular-nums">
+                          {char.price?.toLocaleString()}
+                        </td>
+                        <td>
+                          {char.fair_value > 0 ? (
+                            <span className="text-terminal-cyan font-mono text-xs tabular-nums">
+                              {char.fair_value.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-terminal-yellow font-mono text-xs">
+                              <span className="inline-block w-2.5 h-2.5 border-2 border-terminal-yellow/40 border-t-transparent rounded-full animate-spin mr-1 align-middle" />
+                              ENRICHING
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {vsFair !== null ? (
+                            <span
+                              className={`text-[11px] font-mono font-bold ${vsFair <= -15 ? "text-terminal-green scale-110" : vsFair < 0 ? "text-terminal-green" : vsFair > 40 ? "text-terminal-red opacity-50" : "text-terminal-muted"}`}
+                            >
+                              {vsFair > 0 ? "+" : ""}{vsFair.toFixed(0)}%
+                            </span>
+                          ) : <span className="text-terminal-yellow font-mono text-xs">WAITING</span>}
+                        </td>
+                        <td className="text-terminal-text text-xs font-mono">
+                          {char.gear_score?.toFixed(0)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                  :
+                  chars.map((char: any) => {
+                    let closestBracket = "0";
+                    for (const th of floorData?.thresholds || FLOOR_LEVELS) {
+                      if (char.level >= th) closestBracket = String(th);
+                      else break;
+                    }
+                    const floorEntry = floors[char.class_name]?.[closestBracket];
+                    const floorPrice = floorEntry?.min_price;
+                    const vsFloor =
+                      floorPrice && char.price > 0
+                        ? ((char.price - floorPrice) / floorPrice) * 100
+                        : null;
+                    return (
+                      <tr
+                        key={char.token_id}
+                        className={`cursor-pointer transition-colors ${selectedTokenId === char.token_id
+                          ? "bg-terminal-accent/5 border-l-2 border-l-terminal-accent"
+                          : ""
+                        }`}
                         onClick={() => setSelectedTokenId(char.token_id)}
                       >
                         <td className="text-terminal-text font-medium max-w-[200px] truncate">
@@ -220,27 +436,15 @@ export default function CharactersPage() {
                             >
                               {char.name}
                             </a>
-                          ) : (
-                            char.name
-                          )}
+                          ) : char.name}
                         </td>
                         <td>
-                          <span
-                            className={`text-[10px] font-mono font-black tracking-tighter px-1.5 py-0.5 rounded ${CLASS_BG[char.class_name] || "bg-white/5"
-                              } ${CLASS_COLORS[char.class_name] || "text-terminal-text"}`}
-                          >
+                          <span className={`text-[10px] font-mono font-black tracking-tighter px-1.5 py-0.5 rounded ${CLASS_BG[char.class_name] || "bg-white/5"} ${CLASS_COLORS[char.class_name] || "text-terminal-text"}`}>
                             {char.class_name?.toUpperCase()}
                           </span>
                         </td>
-                        <td className="text-terminal-muted text-xs">
-                          {char.job_name}
-                        </td>
                         <td>
-                          <span
-                            className={`font-mono text-xs ${char.level >= 240 ? "text-terminal-red font-black" :
-                              char.level >= 200 ? "text-terminal-yellow font-bold" : "text-terminal-text"
-                              }`}
-                          >
+                          <span className={`font-mono text-xs ${char.level >= 240 ? "text-terminal-red font-black" : char.level >= 200 ? "text-terminal-yellow font-bold" : "text-terminal-text"}`}>
                             LV.{char.level}
                           </span>
                         </td>
@@ -253,16 +457,13 @@ export default function CharactersPage() {
                               {char.fair_value_estimate.toLocaleString()}
                             </span>
                           ) : (
-                            <span className="text-terminal-muted font-mono text-xs">-</span>
+                            <span className="text-terminal-muted font-mono text-xs">—</span>
                           )}
                         </td>
                         <td>
                           {vsFloor !== null ? (
                             <span
-                              className={`text-[11px] font-mono font-bold ${vsFloor <= -15 ? "text-terminal-green scale-110" :
-                                vsFloor < 0 ? "text-terminal-green" :
-                                  vsFloor > 40 ? "text-terminal-red opacity-50" : "text-terminal-muted"
-                                }`}
+                              className={`text-[11px] font-mono font-bold ${vsFloor <= -15 ? "text-terminal-green scale-110" : vsFloor < 0 ? "text-terminal-green" : vsFloor > 40 ? "text-terminal-red opacity-50" : "text-terminal-muted"}`}
                             >
                               {vsFloor > 0 ? "+" : ""}{vsFloor.toFixed(0)}%
                             </span>
@@ -270,7 +471,8 @@ export default function CharactersPage() {
                         </td>
                       </tr>
                     );
-                  })}
+                  })
+                  }
                 </tbody>
               </table>
             )}
@@ -288,12 +490,20 @@ export default function CharactersPage() {
             </span>
             <button
               onClick={() => { setPage((p) => p + 1); window.scrollTo(0, 0); }}
-              disabled={data?.is_last_page}
+              disabled={view === "explore" && data?.is_last_page}
               className="px-4 py-1 text-[10px] font-mono text-terminal-muted hover:text-terminal-accent border border-terminal-border rounded disabled:opacity-10"
             >
               NEXT_BLOCK
             </button>
           </div>
+          {view === "underpriced" && enrichedTotal > enriched.length && enriched.length > 0 && (
+            <div className="px-4 py-2 border-t border-terminal-yellow/20 bg-terminal-yellow/5 flex items-center gap-2">
+              <span className="inline-block w-3 h-3 border-2 border-terminal-yellow/50 border-t-transparent rounded-full animate-spin" />
+              <span className="text-[10px] font-mono text-terminal-yellow">
+                Enriching {enriched.length} of {enrichedTotal} — results update as data becomes available
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Right panel */}
