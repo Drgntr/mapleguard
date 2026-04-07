@@ -1,17 +1,17 @@
 """
-Character Fair Value Engine — v3
+Character Fair Value Engine — v4
 
-Components:
+Fair value depends on character level bracket:
+- <200: NO arcane symbols or V-skills → fair value = level-based median
+       from comparable listings (same class, same level bracket)
+- 200+: HAS arcane + V-skills → fair value = sales/comparable base
+       + arcane value + equipment value + ability premium
+
+Components for 200+:
 1. Recent sales (CharacterSaleHistory via RPC OrderMatched) — base comparables
-2. Arcane symbol value — cada nível de arcane tem preço
-3. Equipment value — starforce + potential + bonus_potential via rarity_engine
+2. Arcane symbol value — each force level has a price
+3. Equipment value — starforce + potential + bonus_potential
 4. Ability premium — grades dos 3 slots de ability
-
-O fair value é construído a partir de:
-  - Base = mediana de vendas similares (mesma classe, ±20 level)
-  - + Valor total dos arcane symbols (por force level)
-  - + Valor dos equipamentos mintable (SF + pot + bpot)
-  - + Premium de abilities
 """
 
 import json
@@ -21,26 +21,19 @@ from typing import Optional
 from sqlalchemy import select, func
 
 from db.database import async_session, CharacterMarketStatus, CharacterSaleHistory
-from services.rarity_engine import rarity_engine
 
 
 # ── Arcane Symbol Pricing ─────────────────────────────────────────
-# Cada arcane symbol dá arcaneForce por level.
-# O preço é extraído do mercado de arcane symbols reais.
-# Arcane Force total → valor estimado em NESO.
-# Estes valores são estimativas baseadas em preços de mercado de
-# arcane symbols vendidos individualmente no marketplace.
-
-# Simpler: map arcane_force total → valor estimado
-# Baseado em preços do marketplace por arcane symbol individual
-ARCANE_VALUE_PER_FORCE = 50_000  # ~50k NESO per arcane force
-# Bônus por set completo (mais de 18 slots preenchidos):
-ARCANE_FULL_BONUS = 1.25  # 25% bonus for full set (390+ force = 26x15)
+# Arcane force → estimated NESO value
+# Based on marketplace prices of individual arcane symbols
+ARCANE_VALUE_PER_FORCE = 50_000  # ~50k NESO per arcane force point
+ARCANE_FULL_BONUS = 1.25  # 25% bonus for complete set (350+ force)
 
 
 # ── Ability Premium ────────────────────────────────────────────────
 
 def get_ability_premium(ability_total: int) -> float:
+    """Premium percentage for ability grades."""
     if ability_total >= 18:
         return 0.90
     if ability_total >= 16:
@@ -58,52 +51,40 @@ def get_ability_premium(ability_total: int) -> float:
     return 0.00
 
 
-# ── Equipment Value via Rarity Engine ─────────────────────────────
+# ── Equipment Value ───────────────────────────────────────────────
 
-# Valores baseados em preços reais do marketplace:
-# - Starforce: cada ponto tem custo crescente, em média ~50k-100k NESO por SF
-# - Potential: grade 2=Epic~1M, 3=Unique~5M, 4=Legendary~20M
-# - Bonus potential: similar mas ~60% do valor
-
-SF_VALUE_PER_POINT = 75_000  # médio por SF point no equipamento
+SF_VALUE_PER_POINT = 75_000  # ~75k per SF point
 
 POTENTIAL_VALUES = {
     0: 0,
-    1: 100_000,     # Rare
-    2: 1_000_000,   # Epic
-    3: 5_000_000,   # Unique
-    4: 20_000_000,  # Legendary
-    5: 50_000_000,  # Special
-    6: 100_000_000, # Mythic
+    1: 100_000,       # Rare
+    2: 1_000_000,     # Epic
+    3: 5_000_000,     # Unique
+    4: 20_000_000,    # Legendary
+    5: 50_000_000,    # Special
+    6: 100_000_000,   # Mythic
 }
 
 
 def compute_item_value(starforce: int, potential_grade: int,
                        bonus_potential=None) -> int:
-    """Valor aproximado de um item mintable em NESO."""
+    """Estimated value of a mintable item in NESO."""
     value = 0
-    # Starforce
     value += starforce * SF_VALUE_PER_POINT
 
-    # Potential
     pg = min(max(potential_grade, 0), 6)
     value += POTENTIAL_VALUES.get(pg, 0)
 
-    # Bonus potential
     if bonus_potential and isinstance(bonus_potential, dict):
         b_grade = bonus_potential.get("option1", {}).get("grade", 0) or 0
         b_grade = min(max(b_grade, 0), 6)
-        # Bonus potential vale ~60% do potential base
         value += int(POTENTIAL_VALUES.get(b_grade, 0) * 0.6)
 
     return value
 
 
 def compute_equipment_value(equipped_items: list) -> tuple[int, float]:
-    """
-    Returns (total_item_value, gear_score).
-    Equipment items from the character's equipped_items_json.
-    """
+    """Returns (total_item_value, avg_gear_score)."""
     total_value = 0
     gear_scores = []
 
@@ -126,19 +107,14 @@ def compute_equipment_value(equipped_items: list) -> tuple[int, float]:
 # ── Arcane Value ──────────────────────────────────────────────────
 
 def compute_arcane_value(arcane_force: int) -> int:
-    """
-    Calcula valor estimado dos arcane symbols de um character.
-    Cada ponto de arcane force tem um valor de mercado.
-    Bonus para set completo.
-    """
+    """Estimated value of arcane symbols in NESO."""
     if arcane_force <= 0:
         return 0
 
     base_value = arcane_force * ARCANE_VALUE_PER_FORCE
 
-    # Bonus por set completo (26 slots, cada dando 15 force = 390 total)
-    # Se tem arcane_force próximo do máximo, bonus
-    if arcane_force >= 350:  # Set eterno completo
+    # Complete set bonus (26 slots × 15 force = 390 total)
+    if arcane_force >= 350:
         base_value = int(base_value * ARCANE_FULL_BONUS)
 
     return base_value
@@ -153,18 +129,16 @@ async def compute_char_fair_value(
     equipped_item_ids: list[dict] = None,
 ) -> tuple[float, str, str]:
     """
-    Compute fair value:
-    1. Find comparable recent sales (local DB, captured via RPC OrderMatched)
-    2. Use median as base
-    3. Add arcane symbol value
-    4. Add equipment item value
-    5. Apply ability premium
+    Compute fair value with level-aware strategy:
+
+    <200: No arcane/V-skill → use level-based comparable median from current listings
+    200+: Full computation → base from sales + arcane + equipment + ability
     """
     breakdown = {}
+    is_high_level = level >= 200
 
     # === 1. Comparable sales (local DB from RPC watcher) ===
     sales_prices = []
-
     async with async_session() as session:
         stmt = select(CharacterSaleHistory).where(
             CharacterSaleHistory.class_name == cls_name,
@@ -176,7 +150,13 @@ async def compute_char_fair_value(
         sales = (await session.execute(stmt)).scalars().all()
 
         if sales:
-            sales_prices = [s.price for s in sales if s.price > 0]
+            # For 200+ chars: filter by arcane tier similarity
+            if is_high_level and arcane_tier:
+                sales_filtered = [s for s in sales if s.arcane_force > 0]
+                if sales_filtered:
+                    sales_prices = [s.price for s in sales_filtered if s.price > 0]
+            else:
+                sales_prices = [s.price for s in sales if s.price > 0]
             breakdown["local_sales_count"] = len(sales_prices)
 
     # IQR filter outliers
@@ -191,58 +171,107 @@ async def compute_char_fair_value(
 
     sales_median = median(sales_prices) if sales_prices else 0
 
-    # === 2. Comparable listings (DB enriched) ===
+    # === 2. Fallback comparable listings ===
     listing_prices = []
-    if sales_median <= 0:
-        async with async_session() as session:
-            stmt = select(CharacterMarketStatus).where(
-                CharacterMarketStatus.class_name == cls_name,
-                CharacterMarketStatus.status.in_(["enriched", "pending"]),
-                CharacterMarketStatus.price > 0,
-                CharacterMarketStatus.level >= max(1, level - 20),
-                CharacterMarketStatus.level <= level + 20,
-            )
-            rows = (await session.execute(stmt)).scalars().all()
-            if rows:
-                listing_prices = [r.price for r in rows]
-                listing_median = median(listing_prices)
-                sales_median = listing_median
-                breakdown["listing_count"] = len(listing_prices)
+    async with async_session() as session:
+        stmt = select(CharacterMarketStatus).where(
+            CharacterMarketStatus.class_name == cls_name,
+            CharacterMarketStatus.status.in_(["enriched", "pending"]),
+            CharacterMarketStatus.price > 0,
+            CharacterMarketStatus.level >= max(1, level - 20),
+            CharacterMarketStatus.level <= level + 20,
+        )
+        rows = (await session.execute(stmt)).scalars().all()
 
-    # === 3. Determine base value ===
-    if sales_median and sales_median > 0:
+        if rows:
+            # For 200+: only compare to chars with arcane (similar quality)
+            if is_high_level and arcane_force > 0:
+                rows = [r for r in rows if r.arcane_force > 0]
+            listing_prices = [r.price for r in rows if r.price > 0]
+
+            # IQR filter listings too
+            if len(listing_prices) >= 4:
+                sorted_lp = sorted(listing_prices)
+                n2 = len(sorted_lp)
+                q1l = sorted_lp[n2 // 4]
+                q3l = sorted_lp[(3 * n2) // 4]
+                iqrl = q3l - q1l
+                listing_prices = [p for p in listing_prices
+                                  if q1l - 1.5 * iqrl <= p <= q3l + 1.5 * iqrl]
+
+    if not sales_median or sales_median <= 0:
+        if listing_prices:
+            listing_median = median(listing_prices)
+            if listing_median > 0:
+                base_value = listing_median
+                breakdown["fallback_listing_median"] = round(listing_median, 2)
+                breakdown["fallback_count"] = len(listing_prices)
+                confidence = "low"
+            else:
+                base_value = 0
+                confidence = "none"
+        else:
+            base_value = 0
+            confidence = "none"
+    else:
         base_value = sales_median
         confidence = "high" if len(sales_prices) >= 5 else "medium"
-    else:
-        # No comparable data — return 0, don't invent
-        return 0, "none", json.dumps({"reason": "no_comparable_data", "class": cls_name})
+
+    # === For chars <200: base_value comes from level-based comparables ===
+    if not is_high_level:
+        # <200 chars: base_value is already from comparable listings at same level
+        # Add nothing — they have no arcane, no V-skills, no meaningful equipment
+        if base_value <= 0:
+            return 0, "none", json.dumps({
+                "reason": "no_comparable_data",
+                "class": cls_name,
+                "level": level,
+            })
+
+        # Sanity clamp for low-level char fairness
+        final = base_value
+        final = max(final, base_value * 0.8)
+        final = min(final, base_value * 1.25)
+
+        breakdown["strategy"] = "level_based"
+        breakdown["final"] = round(final, 2)
+        breakdown["confidence"] = confidence
+        return round(final, 2), confidence, json.dumps(breakdown)
+
+    # === For chars 200+: full computation ===
+    if base_value <= 0:
+        return 0, "none", json.dumps({
+            "reason": "no_comparable_data_200plus",
+            "class": cls_name,
+            "level": level,
+        })
 
     breakdown["base_median"] = round(base_value, 2)
 
-    # === 4. Arcane value — ADDED to base (not multiplied) ===
+    # Arcane value (ADDED to base)
     arcane_value = compute_arcane_value(arcane_force)
     breakdown["arcane_force"] = arcane_force
     breakdown["arcane_tier"] = arcane_tier
     breakdown["arcane_value"] = arcane_value
 
-    # === 5. Equipment value ===
+    # Equipment value
     equip_value = 0
     if equipped_item_ids:
         equip_value, gear_score_final = compute_equipment_value(equipped_item_ids)
         gear_score = gear_score_final if gear_score_final > 0 else gear_score
     breakdown["equipment_value"] = equip_value
 
-    # === 6. Ability premium (percentage of base) ===
+    # Ability premium
     ability_pct = get_ability_premium(ability_total)
     ability_adj = base_value * ability_pct
     breakdown["ability_total"] = ability_total
     breakdown["ability_pct"] = round(ability_pct * 100, 1)
     breakdown["ability_adjustment"] = round(ability_adj, 2)
 
-    # === FINAL: base + arcane + equipment + ability premium ===
+    # FINAL: base + arcane + equipment + ability premium
     final = base_value + arcane_value + equip_value + ability_adj
 
-    # Sanity cap: can't be more than 4x the median
+    # Sanity cap: at most 4x base
     final = min(final, base_value * 4.0)
     # Floor: at least 0.7x base
     final = max(final, base_value * 0.7)
@@ -257,8 +286,6 @@ async def compute_char_fair_value(
 
 async def refresh_all_fair_values():
     """Recompute fair values for all enriched listings."""
-    from sqlalchemy import select
-
     async with async_session() as session:
         stmt = select(CharacterMarketStatus).where(
             CharacterMarketStatus.status == "enriched"

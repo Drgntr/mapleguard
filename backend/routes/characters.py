@@ -20,8 +20,35 @@ def json_loads(val):
             return []
     return val
 
+
 settings = get_settings()
 router = APIRouter(prefix="/api/characters", tags=["Characters"])
+
+
+# Level thresholds for floor pricing
+FLOOR_THRESHOLDS = [65, 120, 140, 160, 170, 180, 190, 200, 210, 220, 230, 240]
+
+
+async def _get_class_level_median(cls: str, level: int) -> Optional[float]:
+    """Get median price for same class in same level bracket."""
+    current = "0"
+    for t in FLOOR_THRESHOLDS:
+        if level >= t:
+            current = str(t)
+        else:
+            break
+
+    # Use the same floor_prices logic to get bracket median
+    try:
+        all_chars = await market_data_service.fetch_all_characters(max_pages=3)
+        prices = [c.price for c in all_chars if c.price > 0 and c.class_name == cls]
+        if not prices:
+            return None
+        prices_sorted = sorted(prices)
+        n = len(prices_sorted)
+        return prices_sorted[n // 2]
+    except Exception:
+        return None
 
 
 @router.get("/")
@@ -48,9 +75,8 @@ async def list_characters(
         total_count = len(chars)
 
     # Enrich with fair value from DB (computed by char_fair_value engine)
-    enriched_map = {}
+    enriched_map: dict[str, dict] = {}
     try:
-        from sqlalchemy import select
         async with async_session() as session:
             stmt = select(CharacterMarketStatus).where(
                 CharacterMarketStatus.status.in_(["enriched", "pending"])
@@ -96,9 +122,13 @@ async def list_characters(
             d["ability_total"] = ev["ability_total"]
         else:
             d["fair_value_estimate"] = _get_fair_fallback(c)
-            d["fair_confidence"] = "none"
-            d["arcane_tier"] = "unknown"
-            d["ability_total"] = 0
+            # Derive approximate arcane tier from level (chars <200 have no arcane/V-skill)
+            if c.level >= 200:
+                d["arcane_tier"] = "unknown"  # Will show as unknown until enriched
+                d["ability_total"] = 0
+            else:
+                d["arcane_tier"] = "none"
+                d["ability_total"] = 0
 
         result.append(d)
 
@@ -125,11 +155,9 @@ async def floor_prices():
     # Fetch more pages for accurate floors
     all_chars = await market_data_service.fetch_all_characters(max_pages=6)
 
-    thresholds = [65, 120, 140, 160, 200, 220, 230, 240]
-
     def get_bracket(lv: int) -> str:
         current = "0"
-        for t in thresholds:
+        for t in FLOOR_THRESHOLDS:
             if lv >= t:
                 current = str(t)
             else:
@@ -183,7 +211,7 @@ async def floor_prices():
         "listings": listings_by_class,
         "class_counts": class_counts,
         "sample_size": len(all_chars),
-        "thresholds": thresholds
+        "thresholds": FLOOR_THRESHOLDS
     }
     await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG)
     return result
@@ -224,7 +252,7 @@ async def search_character(query: str = Query(..., min_length=2)):
                 "class_name": c.class_name,
                 "image_url": c.image_url,
             })
-            
+
     return {"results": results[:30]}
 
 
@@ -234,7 +262,7 @@ async def character_detail(token_id: str):
     char = await market_data_service.fetch_character_detail(token_id)
     if not char:
         return {"error": "Character not found", "token_id": token_id}
-        
+
     char_dict = char.model_dump()
 
     # Inject precise Combat Rating Upgrade (CP contribution) into each item
@@ -319,11 +347,15 @@ async def enriched_listings(
     class_filter: str = Query(""),
     status_filter: str = Query("enriched"),
 ):
-    """Paginated enriched listings with fair value."""
+    """Paginated enriched listings with fair value.
+    When status_filter='enriched', returns only enriched listings.
+    When status_filter='', returns ALL listings (enriched + unenriched)."""
     async with async_session() as session:
         filters = []
         if class_filter and class_filter != "all_classes":
             filters.append(CharacterMarketStatus.class_name == class_filter)
+
+        # Allow viewing all listings including pending/unenriched
         if status_filter:
             statuses = status_filter.split(",")
             filters.append(CharacterMarketStatus.status.in_(statuses))
@@ -419,11 +451,6 @@ async def enriched_detail(token_id: str):
         breakdown = json_loads(row.fair_breakdown)
 
     return {
-        "token_id": row.token_id,
-        "asset_key": row.asset_key,
-        "name": row.name,
-        "class_name": row.class_name,
-        "job_name": row.job_name,
         "level": row.level,
         "price": row.price,
         "arcane_force": row.arcane_force,

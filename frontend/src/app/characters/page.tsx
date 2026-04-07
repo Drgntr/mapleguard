@@ -456,8 +456,13 @@ export default function CharactersPage() {
                             <span className="text-terminal-cyan font-mono text-xs tabular-nums">
                               {char.fair_value_estimate.toLocaleString()}
                             </span>
-                          ) : (
+                          ) : char.level < 200 ? (
                             <span className="text-terminal-muted font-mono text-xs">—</span>
+                          ) : (
+                            <span className="text-terminal-yellow font-mono text-xs">
+                              <span className="inline-block w-2.5 h-2.5 border-2 border-terminal-yellow/40 border-t-transparent rounded-full animate-spin mr-1 align-middle" />
+                              ENRICHING
+                            </span>
                           )}
                         </td>
                         <td>
