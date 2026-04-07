@@ -89,6 +89,7 @@ async def list_characters(
                     "arcane_tier": r.arcane_set_tier,
                     "ability_total": r.ability_total,
                     "gear_score": r.gear_score,
+                    "fair_breakdown": r.fair_breakdown or "{}",
                 }
     except Exception:
         pass  # DB not ready or no enriched data yet
@@ -132,17 +133,15 @@ async def list_characters(
             return class_bracket_medians[char.class_name].get(bracket, 0)
         return 0
 
-    result = []
-    for c in chars:
-        d = c.model_dump()
-
-        # Try enriched fair value first (from DB engine)
+    # Load fair_vBreakdown for enriched chars
         if c.token_id in enriched_map:
             ev = enriched_map[c.token_id]
             d["fair_value_estimate"] = ev["fair_value"]
             d["fair_confidence"] = ev["confidence"]
             d["arcane_tier"] = ev["arcane_tier"]
             d["ability_total"] = ev["ability_total"]
+            d["gear_score"] = ev["gear_score"]
+            d["fair_breakdown"] = json_loads(ev.get("fair_breakdown"))
             d["is_enriched"] = True
         else:
             # <200 chars: show level-based floor estimate
@@ -152,10 +151,12 @@ async def list_characters(
                 d["fair_value_estimate"] = fallback
                 d["fair_confidence"] = "floor_estimate"
                 d["is_enriched"] = False
+                d["fair_breakdown"] = {"source": "level_floor"}
             else:
                 d["fair_value_estimate"] = 0
                 d["fair_confidence"] = "pending_enrich"
                 d["is_enriched"] = False
+                d["fair_breakdown"] = {"source": "enriching"}
             d["arcane_tier"] = "none" if c.level < 200 else "unknown"
             d["ability_total"] = 0
 

@@ -382,9 +382,8 @@ export default function CharactersPage() {
                               {char.fair_value.toLocaleString()}
                             </span>
                           ) : (
-                            <span className="text-terminal-yellow font-mono text-xs">
-                              <span className="inline-block w-2.5 h-2.5 border-2 border-terminal-yellow/40 border-t-transparent rounded-full animate-spin mr-1 align-middle" />
-                              ENRICHING
+                            <span className="text-terminal-yellow font-mono text-xs animate-pulse">
+                              Carregando...
                             </span>
                           )}
                         </td>
@@ -451,18 +450,39 @@ export default function CharactersPage() {
                         <td className="text-terminal-accent font-bold tabular-nums">
                           {char.price?.toLocaleString()}
                         </td>
-                        <td>
+                        <td className="relative group">
                           {char.fair_value_estimate > 0 ? (
                             <span className="text-terminal-cyan font-mono text-xs tabular-nums">
                               {char.fair_value_estimate.toLocaleString()}
                             </span>
+                          ) : char.fair_breakdown?.source === "enriching" ? (
+                            <span className="text-terminal-yellow font-mono text-xs animate-pulse">
+                              Carregando...
+                            </span>
                           ) : char.level < 200 ? (
                             <span className="text-terminal-muted font-mono text-xs">—</span>
                           ) : (
-                            <span className="text-terminal-yellow font-mono text-xs">
-                              <span className="inline-block w-2.5 h-2.5 border-2 border-terminal-yellow/40 border-t-transparent rounded-full animate-spin mr-1 align-middle" />
-                              ENRICHING
+                            <span className="text-terminal-yellow font-mono text-xs animate-pulse">
+                              Carregando...
                             </span>
+                          )}
+                          {/* Tooltip when fair_value_estimate > price */}
+                          {char.fair_value_estimate > char.price && char.is_enriched && char.fair_breakdown && (
+                            <div className="absolute left-0 bottom-full mb-2 z-50 hidden group-hover:block bg-terminal-panel border border-white/10 rounded p-2 text-[9px] font-mono whitespace-nowrap pointer-events-none">
+                              <div className="text-terminal-muted mb-1">Composição do Fair Value:</div>
+                              {char.fair_breakdown?.base_median && (
+                                <div>Base: {char.fair_breakdown.base_median.toLocaleString()}</div>
+                              )}
+                              {char.fair_breakdown?.arcane_value && char.fair_breakdown.arcane_value > 0 && (
+                                <div className="text-terminal-purple">Arcane: +{char.fair_breakdown.arcane_value.toLocaleString()} ({char.fair_breakdown.arcane_force || 0} force)</div>
+                              )}
+                              {char.fair_breakdown?.equipment_value && char.fair_breakdown.equipment_value > 0 && (
+                                <div className="text-terminal-green">Equipment: +{char.fair_breakdown.equipment_value.toLocaleString()}</div>
+                              )}
+                              {char.fair_breakdown?.ability_adjustment && char.fair_breakdown.ability_adjustment > 0 && (
+                                <div className="text-terminal-yellow">Ability: +{char.fair_breakdown.ability_adjustment.toLocaleString()} ({char.fair_breakdown.ability_total || 0}/18)</div>
+                              )}
+                            </div>
                           )}
                         </td>
                         <td>
