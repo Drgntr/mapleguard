@@ -25,8 +25,8 @@ settings = get_settings()
 router = APIRouter(prefix="/api/characters", tags=["Characters"])
 
 
-# Level thresholds for floor pricing
-FLOOR_THRESHOLDS = [65, 120, 140, 160, 170, 180, 190, 200, 210, 220, 230, 240]
+# Level thresholds for floor pricing — buckets of 10 (e.g. 130→131-139, 140→141-149)
+FLOOR_THRESHOLDS = [65, 75, 85, 95, 105, 115, 125, 135, 145, 155, 165, 175, 185, 195, 200, 210, 220, 230, 240]
 
 
 async def _get_class_level_median(cls: str, level: int) -> Optional[float]:
