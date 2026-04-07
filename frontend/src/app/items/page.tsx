@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   useItems,
   useItemOHLC,
   useScarcityRanking,
   useTradeHistory,
   useItemFloorPrices,
+  useUnderpricedItems,
 } from "@/hooks/useMarketData";
 import OHLCChart from "@/components/OHLCChart";
 import ScarcityBadge from "@/components/ScarcityBadge";
 
 const POTENTIAL_LABELS: Record<number, [string, string]> = {
-  0: ["NONE", "text-terminal-muted"],
+  0: ["NORMAL", "text-terminal-muted"],
   1: ["RARE", "badge-cyan"],
   2: ["EPIC", "badge-purple"],
   3: ["UNIQUE", "badge-yellow"],
@@ -40,9 +41,77 @@ export default function ItemsPage() {
   const { data: ranking } = useScarcityRanking(30);
   const { data: tradeData } = useTradeHistory(selectedItemId);
   const { data: itemFloorData } = useItemFloorPrices();
+  const { data: underpricedData } = useUnderpricedItems(0.15, 500);
 
   const items = data?.items || [];
   const itemFloors = itemFloorData?.floor_prices || {};
+
+  // Fair value lookup computed via memo: name -> sf -> pot -> bpot -> {floor, median}
+  const fairLookup = useMemo(() => {
+    const fl: Record<string, any> = {};
+    for (const [name, sfMap] of Object.entries(itemFloors)) {
+      if (typeof sfMap !== "object" || sfMap === null) continue;
+      fl[name] = {};
+      for (const [sf, gradeMap] of Object.entries(sfMap as Record<string, unknown>)) {
+        if (typeof gradeMap !== "object" || gradeMap === null) continue;
+        fl[name][sf] = {};
+        for (const [pot, bpotMap] of Object.entries(gradeMap as Record<string, unknown>)) {
+          if (typeof bpotMap !== "object" || bpotMap === null) continue;
+          fl[name][sf][pot] = {};
+          for (const [bpot, info] of Object.entries(bpotMap as Record<string, unknown>)) {
+            const d = info as Record<string, number>;
+            if (d?.median) {
+              fl[name][sf][pot][bpot] = { floor: d.floor || 0, median: d.median };
+            }
+          }
+        }
+      }
+    }
+    return fl;
+  }, [itemFloors]);
+
+  function getFairValue(item: { name: string; starforce: number; potential_grade: number; bonus_potential_grade: number; price?: number }): { fair: number; discount: number; asset_key?: string } {
+    const name = item.name;
+    const sfKey = item.starforce > 0 ? `SF${item.starforce}` : "NSF";
+    const potKey = String(item.potential_grade);
+    const bpotKey = String(item.bonus_potential_grade || 0);
+
+    const nameMap: any = (fairLookup as any)?.[name];
+    const sfMap: any = nameMap?.[sfKey];
+    const potMap: any = sfMap?.[potKey];
+    const bpotInfo: any = potMap?.[bpotKey];
+    let median = bpotInfo?.median as number | undefined;
+
+    // Fallback: any bonus potential tier for this pot + sf
+    if (!median && potMap && typeof potMap === "object") {
+      const entries = Object.values(potMap as Record<string, any>);
+      for (const e of entries) {
+        if (e?.median) { median = e.median; break; }
+      }
+    }
+
+    // Fallback: any potential tier for this sf
+    if (!median && sfMap && typeof sfMap === "object") {
+      const potEntries = Object.values(sfMap as Record<string, any>);
+      for (const p of potEntries) {
+        if (p && typeof p === "object") {
+          for (const e of Object.values(p as Record<string, any>)) {
+            if ((e as any)?.median) { median = (e as any).median; break; }
+          }
+        }
+        if (median) break;
+      }
+    }
+
+    if (!median) return { fair: 0, discount: 0 };
+    const price = item.price || 0;
+    if (price <= 0) return { fair: median, discount: 0 };
+    return { fair: median, discount: ((median - price) / median) * 100 };
+  }
+
+  function getItemAssetKey(item: any): string | undefined {
+    return item.asset_key || item.token_id;
+  }
 
   return (
     <div className="space-y-6">
@@ -164,59 +233,105 @@ export default function ItemsPage() {
                     <th>SF</th>
                     <th>POTENTIAL</th>
                     <th>PRICE (NESO)</th>
+                    <th>FAIR VALUE</th>
+                    <th>DISCOUNT</th>
                     <th>LISTED</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {items.map((item: any) => (
-                    <tr
-                      key={item.token_id}
-                      className={`cursor-pointer transition-colors ${
-                        selectedItemId === item.item_id
-                          ? "bg-terminal-accent/5 border-l-2 border-terminal-accent"
-                          : ""
-                      }`}
-                      onClick={() => {
-                        setSelectedItemId(item.item_id);
-                        setSelectedItemName(item.name);
-                      }}
-                    >
-                      <td className="text-terminal-text font-medium max-w-[200px] truncate">
-                        {item.name}
-                      </td>
-                      <td className="text-terminal-muted text-[10px] max-w-[120px] truncate">
-                        {item.category_label
-                          ? item.category_label.split(" > ").slice(-1)[0]
-                          : "-"}
-                      </td>
-                      <td>
-                        <span
-                          className={`font-mono ${
-                            item.starforce >= 20
-                              ? "text-terminal-red font-bold"
-                              : item.starforce >= 15
-                              ? "text-terminal-yellow font-bold"
-                              : item.starforce > 0
-                              ? "text-terminal-text"
-                              : "text-terminal-muted"
-                          }`}
-                        >
-                          {item.starforce > 0 ? `+${item.starforce}` : "-"}
-                        </span>
-                      </td>
-                      <td>
-                        <PotentialBadge grade={item.potential_grade} />
-                      </td>
-                      <td className="text-terminal-accent font-medium tabular-nums">
-                        {item.price?.toLocaleString() || "---"}
-                      </td>
-                      <td className="text-terminal-muted text-[10px]">
-                        {item.created_at
-                          ? new Date(item.created_at).toLocaleDateString()
-                          : "-"}
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((item: any) => {
+                    const { fair, discount } = getFairValue(item);
+                    const assetKey = getItemAssetKey(item);
+                    return (
+                      <tr
+                        key={item.token_id}
+                        className={`cursor-pointer transition-colors ${
+                          selectedItemId === item.item_id
+                            ? "bg-terminal-accent/5 border-l-2 border-terminal-accent"
+                            : ""
+                        }`}
+                        onClick={() => {
+                          setSelectedItemId(item.item_id);
+                          setSelectedItemName(item.name);
+                        }}
+                      >
+                        <td className="text-terminal-text font-medium max-w-[200px] truncate">
+                          {assetKey ? (
+                            <a
+                              href={`https://msu.io/navigator/item/${assetKey}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline hover:text-terminal-accent"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {item.name}
+                            </a>
+                          ) : (
+                            item.name
+                          )}
+                        </td>
+                        <td className="text-terminal-muted text-[10px] max-w-[120px] truncate">
+                          {item.category_label
+                            ? item.category_label.split(" > ").slice(-1)[0]
+                            : "-"}
+                        </td>
+                        <td>
+                          <span
+                            className={`font-mono ${
+                              item.starforce >= 20
+                                ? "text-terminal-red font-bold"
+                                : item.starforce >= 15
+                                ? "text-terminal-yellow font-bold"
+                                : item.starforce > 0
+                                ? "text-terminal-text"
+                                : "text-terminal-muted"
+                            }`}
+                          >
+                            {item.starforce > 0 ? `+${item.starforce}` : "-"}
+                          </span>
+                        </td>
+                        <td>
+                          <PotentialBadge grade={item.potential_grade} />
+                        </td>
+                        <td className="text-terminal-accent font-medium tabular-nums">
+                          {item.price?.toLocaleString() || "---"}
+                        </td>
+                        <td>
+                          {fair > 0 ? (
+                            <span className="text-terminal-cyan font-mono text-xs tabular-nums">
+                              {fair.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-terminal-muted font-mono text-xs">-</span>
+                          )}
+                        </td>
+                        <td>
+                          {fair > 0 && item.price > 0 ? (
+                            <span
+                              className={`text-[10px] font-mono font-bold ${
+                                discount > 20
+                                  ? "text-terminal-green scale-110"
+                                  : discount > 0
+                                  ? "text-terminal-green"
+                                  : discount < -20
+                                  ? "text-terminal-red"
+                                  : "text-terminal-muted"
+                              }`}
+                            >
+                              {discount > 0 ? `+${discount.toFixed(0)}%` : `${discount.toFixed(0)}%`}
+                            </span>
+                          ) : (
+                            <span className="text-terminal-muted font-mono text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="text-terminal-muted text-[10px]">
+                          {item.created_at
+                            ? new Date(item.created_at).toLocaleDateString()
+                            : "-"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
@@ -310,17 +425,21 @@ export default function ItemsPage() {
             <div className="p-6 text-center text-terminal-muted text-xs font-mono">Loading floor data...</div>
           ) : (
             (() => {
-              // Flatten nested structure: name -> sf_bracket -> pot_grade -> {floor, median, count}
-              const flat: { name: string; sf: string; pot: string; floor: number; median: number; count: number }[] = [];
+              // Flatten 4-level nested structure: name -> sf_bracket -> pot_grade -> bpot_grade -> {floor, median, count}
+              const flat: { name: string; sf: string; pot: string; bpot: string; floor: number; median: number; count: number }[] = [];
               for (const [name, sfMap] of Object.entries(itemFloors)) {
-                if (typeof sfMap !== "object") continue;
+                if (typeof sfMap !== "object" || sfMap === null) continue;
                 for (const [sf, gradeMap] of Object.entries(sfMap as Record<string, unknown>)) {
-                  if (typeof gradeMap !== "object") continue;
-                  for (const [pot, info] of Object.entries(gradeMap as Record<string, unknown>)) {
-                    const d = info as Record<string, number>;
-                    if (d?.floor) {
-                      const potLabel = ["None", "Rare", "Epic", "Unique", "Legendary", "Special", "Mythic"][Number(pot)] || pot;
-                      flat.push({ name, sf, pot: potLabel, floor: d.floor, median: d.median || 0, count: d.count || 0 });
+                  if (typeof gradeMap !== "object" || gradeMap === null) continue;
+                  for (const [pot, bpotMap] of Object.entries(gradeMap as Record<string, unknown>)) {
+                    if (typeof bpotMap !== "object" || bpotMap === null) continue;
+                    for (const [bpot, info] of Object.entries(bpotMap as Record<string, unknown>)) {
+                      const d = info as Record<string, number>;
+                      if (d?.floor) {
+                        const potLabel = ["None", "Rare", "Epic", "Unique", "Legendary", "Special", "Mythic"][Number(pot)] || pot;
+                        const bpotLabel = ["-", "Rare", "Epic", "Unique", "Legendary", "Special", "Mythic"][Number(bpot)] || bpot;
+                        flat.push({ name, sf, pot: potLabel, bpot: bpotLabel, floor: d.floor, median: d.median || 0, count: d.count || 0 });
+                      }
                     }
                   }
                 }
@@ -332,17 +451,19 @@ export default function ItemsPage() {
                       <th>ITEM</th>
                       <th>SF</th>
                       <th>POT</th>
+                      <th>BPOT</th>
                       <th>FLOOR</th>
                       <th>MEDIAN</th>
                       <th>COUNT</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {flat.sort((a, b) => b.floor - a.floor).slice(0, 50).map((r, i) => (
+                    {flat.sort((a, b) => b.floor - a.floor).slice(0, 80).map((r, i) => (
                       <tr key={i}>
                         <td className="text-terminal-text text-xs truncate max-w-[200px]">{r.name}</td>
                         <td className="text-terminal-yellow text-xs">{r.sf}</td>
                         <td className="text-[10px]">{r.pot}</td>
+                        <td className="text-[10px]">{r.bpot}</td>
                         <td className="text-terminal-green font-bold">{r.floor.toLocaleString()}</td>
                         <td className="text-terminal-cyan">{r.median.toLocaleString()}</td>
                         <td className="text-terminal-muted text-[10px]">{r.count}</td>

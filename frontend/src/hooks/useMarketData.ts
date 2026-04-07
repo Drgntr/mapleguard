@@ -27,9 +27,9 @@ export function useConsumables() {
   return useSWR("/api/items/consumables", fetcher, { refreshInterval: 60000 });
 }
 
-export function useUnderpricedItems(threshold = 0.3) {
+export function useUnderpricedItems(threshold = 0.3, limit = 50) {
   return useSWR(
-    `/api/items/underpriced?discount_threshold=${threshold}&limit=50`,
+    `/api/items/underpriced?discount_threshold=${threshold}&limit=${limit}`,
     fetcher,
     { refreshInterval: 30000 }
   );

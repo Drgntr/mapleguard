@@ -30,6 +30,7 @@ class ItemAttribute(BaseModel):
 
 class ItemListing(BaseModel):
     token_id: str
+    asset_key: str = ""
     name: str
     category_no: int = 0
     category_label: str = ""
@@ -67,6 +68,7 @@ class ItemListing(BaseModel):
         category = raw.get("category", {})
         return ItemListing(
             token_id=str(raw.get("tokenId", "")),
+            asset_key=raw.get("assetKey", ""),
             name=raw.get("name", ""),
             category_no=category.get("categoryNo", 0),
             category_label=category.get("label", ""),

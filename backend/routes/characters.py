@@ -4,6 +4,7 @@ from typing import Optional
 
 from services.market_data import market_data_service
 from services.cache import cache_get, cache_set
+from services.character_price_predictor import character_price_predictor
 from config import get_settings
 
 settings = get_settings()
@@ -33,8 +34,44 @@ async def list_characters(
         chars = [c for c in chars if c.job_name and job_filter.lower() in c.job_name.lower()]
         total_count = len(chars)
 
+    # Enrich with fair value estimates
+    cache_key = "floor_prices_v2"
+    cached = await cache_get(cache_key)
+    floors = (cached or {}).get("floor_prices", {}) if cached else {}
+    thresholds = cached.get("thresholds", [65, 120, 140, 160, 200, 220, 230, 240]) if cached else [65, 120, 140, 160, 200, 220, 230, 240]
+
+    def _get_bracket(lv: int) -> str:
+        current = "0"
+        for t in thresholds:
+            if lv >= t:
+                current = str(t)
+            else:
+                break
+        return current
+
+    def _get_fair(char):
+        """Look up fair value from floor prices."""
+        cls = char.class_name
+        bracket = _get_bracket(char.level)
+        group = floors.get(cls, {}).get(bracket)
+        if group and isinstance(group, dict):
+            return group.get("median_price", 0) or group.get("min_price", 0)
+        # Fallback: class-wide
+        cls_floors = floors.get(cls, {})
+        for v in cls_floors.values():
+            if isinstance(v, dict) and v.get("median_price"):
+                return v["median_price"]
+        return 0
+
+    result = []
+    for c in chars:
+        d = c.model_dump()
+        fair = _get_fair(c)
+        d["fair_value_estimate"] = fair
+        result.append(d)
+
     return {
-        "characters": [c.model_dump() for c in chars],
+        "characters": result,
         "page": page,
         "page_size": page_size,
         "count": total_count,

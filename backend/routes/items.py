@@ -31,8 +31,57 @@ async def list_items(
         sorting=sorting,
         category_no=category_no,
     )
+
+    # Build fair values using floor prices from cache
+    cache_key = "items:floor_prices_v3"
+    cached = await cache_get(cache_key)
+    floors = (cached or {}).get("floor_prices", {})
+
+    def _get_fair(item):
+        """Look up median from 4-level floor data."""
+        name = item.name
+        sf = f"SF{item.starforce}" if item.starforce > 0 else "NSF"
+        pot = item.potential_grade
+        bpot = item.bonus_potential_grade
+        name_map = floors.get(name)
+        if not name_map:
+            return 0
+        sf_map = name_map.get(sf)
+        if not sf_map:
+            # Try any SF bracket
+            for v in name_map.values():
+                if isinstance(v, dict):
+                    sf_map = v
+                    break
+        if not sf_map:
+            return 0
+        pot_map = sf_map.get(str(pot))
+        if not pot_map:
+            # Try any potential
+            for v in sf_map.values():
+                if isinstance(v, dict):
+                    pot_map = v
+                    break
+        if not pot_map:
+            return 0
+        bpot_info = pot_map.get(str(bpot))
+        if bpot_info and isinstance(bpot_info, dict):
+            return bpot_info.get("median", 0)
+        # Fallback: any bpot
+        for v in pot_map.values():
+            if isinstance(v, dict) and v.get("median"):
+                return v["median"]
+        return 0
+
+    result = []
+    for i in items:
+        d = i.model_dump()
+        fair = _get_fair(i)
+        d["fair_value_estimate"] = fair
+        result.append(d)
+
     return {
-        "items": [i.model_dump() for i in items],
+        "items": result,
         "page": page,
         "page_size": page_size,
         "count": len(items),
@@ -173,15 +222,15 @@ async def item_lookup(query: str = Query(..., description="Numeric marketplace I
 
 @router.get("/floor-prices")
 async def item_floor_prices():
-    """Compute floor prices by (item_name, starforce_bracket, potential_grade)."""
-    cache_key = "items:floor_prices_v1"
+    """Compute floor prices by (item_name, starforce_bracket, potential_grade, bonus_potential_grade)."""
+    cache_key = "items:floor_prices_v3"
     cached = await cache_get(cache_key)
     if cached:
         return cached
 
     items = await market_data_service.fetch_all_items(max_pages=3)
 
-    floors: dict[str, dict[str, dict]] = {}  # name -> sf_bracket -> {floor, median, count}
+    floors: dict[str, dict[str, dict[str, dict]]] = {}  # name -> sf_bracket -> pot_grade -> bpot_grade -> list[prices]
 
     for item in items:
         if item.price <= 0:
@@ -189,30 +238,34 @@ async def item_floor_prices():
         name = item.name
         sf_bracket = f"SF{item.starforce}" if item.starforce > 0 else "NSF"
         pot_grade = item.potential_grade
-        key = f"{name}|{sf_bracket}|{pot_grade}"
+        bpot_grade = item.bonus_potential_grade
 
         if name not in floors:
             floors[name] = {}
         if sf_bracket not in floors[name]:
             floors[name][sf_bracket] = {}
         if pot_grade not in floors[name][sf_bracket]:
-            floors[name][sf_bracket][pot_grade] = []
+            floors[name][sf_bracket][pot_grade] = {}
+        if bpot_grade not in floors[name][sf_bracket][pot_grade]:
+            floors[name][sf_bracket][pot_grade][bpot_grade] = []
 
-        floors[name][sf_bracket][pot_grade].append(item.price)
+        floors[name][sf_bracket][pot_grade][bpot_grade].append(item.price)
 
     result = {}
     for name, sf_map in floors.items():
         result[name] = {}
         for sf, grade_map in sf_map.items():
             result[name][sf] = {}
-            for grade_str, prices in grade_map.items():
-                prices.sort()
-                median = prices[len(prices) // 2]
-                result[name][sf][grade_str] = {
-                    "floor": prices[0],
-                    "median": median,
-                    "count": len(prices),
-                }
+            for grade_str, bpot_map in grade_map.items():
+                result[name][sf][grade_str] = {}
+                for bpot_str, prices in bpot_map.items():
+                    prices.sort()
+                    median = prices[len(prices) // 2]
+                    result[name][sf][grade_str][bpot_str] = {
+                        "floor": prices[0],
+                        "median": median,
+                        "count": len(prices),
+                    }
 
     await cache_set(cache_key, result, ttl=settings.CACHE_TTL_LONG)
     return {"floor_prices": result, "sample_size": len(items)}

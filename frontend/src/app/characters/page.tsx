@@ -180,6 +180,7 @@ export default function CharactersPage() {
                     <th>JOB</th>
                     <th>LEVEL</th>
                     <th>PRICE (NESO)</th>
+                    <th>FAIR VALUE</th>
                     <th>VS FLOOR</th>
                   </tr>
                 </thead>
@@ -208,8 +209,20 @@ export default function CharactersPage() {
                           }`}
                         onClick={() => setSelectedTokenId(char.token_id)}
                       >
-                        <td className="text-terminal-text font-medium">
-                          {char.name}
+                        <td className="text-terminal-text font-medium max-w-[200px] truncate">
+                          {char.asset_key ? (
+                            <a
+                              href={`https://msu.io/navigator/character/${char.asset_key}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="hover:underline hover:text-terminal-accent"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {char.name}
+                            </a>
+                          ) : (
+                            char.name
+                          )}
                         </td>
                         <td>
                           <span
@@ -233,6 +246,15 @@ export default function CharactersPage() {
                         </td>
                         <td className="text-terminal-accent font-bold tabular-nums">
                           {char.price?.toLocaleString()}
+                        </td>
+                        <td>
+                          {char.fair_value_estimate > 0 ? (
+                            <span className="text-terminal-cyan font-mono text-xs tabular-nums">
+                              {char.fair_value_estimate.toLocaleString()}
+                            </span>
+                          ) : (
+                            <span className="text-terminal-muted font-mono text-xs">-</span>
+                          )}
                         </td>
                         <td>
                           {vsFloor !== null ? (
