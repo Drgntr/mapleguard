@@ -4,7 +4,6 @@ from typing import Optional
 
 from services.market_data import market_data_service
 from services.cache import cache_get, cache_set
-from services.character_price_predictor import character_price_predictor
 from config import get_settings
 
 settings = get_settings()
@@ -34,79 +33,68 @@ async def list_characters(
         chars = [c for c in chars if c.job_name and job_filter.lower() in c.job_name.lower()]
         total_count = len(chars)
 
-    # Enrich with fair value estimates from floor prices + raw listings
+    # Enrich with fair value estimates using linear regression per class
     cache_key = "floor_prices_v3"
     cached = await cache_get(cache_key)
-    floors = (cached or {}).get("floor_prices", {}) if cached else {}
     listings = (cached or {}).get("listings", {}) if cached else {}
-    thresholds = cached.get("thresholds", [65, 120, 140, 160, 200, 220, 230, 240]) if cached else [65, 120, 140, 160, 200, 220, 230, 240]
+    buckets = (cached or {}).get("floor_prices", {}) if cached else {}
+
+    # Pre-compute linear regression (price ~ level) for each class
+    regressions: dict = {}
+    for cls, char_list in listings.items():
+        if not isinstance(char_list, list) or len(char_list) < 2:
+            continue
+        n = 0
+        sum_x = 0.0
+        sum_y = 0.0
+        sum_xy = 0.0
+        sum_x2 = 0.0
+        for c in char_list:
+            lv = c.get("level", 0)
+            pr = c.get("price", 0)
+            if pr <= 0 or lv <= 0:
+                continue
+            n += 1
+            sum_x += lv
+            sum_y += pr
+            sum_xy += lv * pr
+            sum_x2 += lv * lv
+        if n >= 2:
+            denom = n * sum_x2 - sum_x * sum_x
+            if denom != 0:
+                slope = (n * sum_xy - sum_x * sum_y) / denom
+                intercept = (sum_y - slope * sum_x) / n
+                regressions[cls] = {
+                    "slope": slope,
+                    "intercept": intercept,
+                    "n": n,
+                    "mean_price": sum_y / n,
+                    "mean_level": sum_x / n,
+                }
 
     def _get_fair(char):
         """
-        Compute fair value using k-nearest-neighbor on level within class.
-        Finds the ~5 most recently listed characters of the same class with
-        similar levels and takes IQR-filtered median of their prices.
-        Falls back to bracket median if raw listing data insufficient.
+        Fair value = linear regression prediction (price ~ level) for class.
+        Distinct from bucket-based VS FLOOR — uses all listings to model
+        the price trend, not just the lowest price in a bracket.
         """
         cls = char.class_name
         lv = char.level
 
-        # Phase 1: Look for raw listings near this character's level
-        raw_listings = listings.get(cls, [])
-        if raw_listings and len(raw_listings) >= 2:
-            # Sort by level proximity, take k nearest
-            nearby = sorted(raw_listings, key=lambda x: abs(x["level"] - lv))
-            # k neighbors within ±20 levels
-            k_nearest = [x for x in nearby if abs(x["level"] - lv) <= 20][:5]
+        reg = regressions.get(cls)
+        if reg and reg["n"] >= 2:
+            predicted = reg["intercept"] + reg["slope"] * lv
+            mean_p = reg["mean_price"]
+            predicted = max(predicted, mean_p * 0.3)
+            predicted = min(predicted, mean_p * 3.0)
+            if predicted > 0:
+                return round(predicted, 2)
 
-            if len(k_nearest) >= 2:
-                prices = sorted([x["price"] for x in k_nearest])
-                # IQR filter
-                n = len(prices)
-                q1 = prices[n // 4]
-                q3 = prices[(3 * n) // 4]
-                iqr = q3 - q1
-                filtered = [p for p in prices if q1 - 1.5 * iqr <= p <= q3 + 1.5 * iqr]
-                if filtered:
-                    return round(filtered[len(filtered) // 2], 2)
-
-        # Phase 2: Fallback to bracket median with interpolation
-        cls_floors = floors.get(cls)
-        if not cls_floors or not isinstance(cls_floors, dict):
-            return 0
-
-        relevant_brackets = []
-        for th in sorted(thresholds):
-            if str(th) in cls_floors:
-                relevant_brackets.append((th, cls_floors[str(th)]))
-        if not relevant_brackets:
-            return 0
-
-        floor_bucket = None
-        ceil_bucket = None
-        for th, data in relevant_brackets:
-            if th <= lv:
-                floor_bucket = (th, data)
-            if th > lv and ceil_bucket is None:
-                ceil_bucket = (th, data)
-
-        def _median(bucket):
-            if bucket and isinstance(bucket[1], dict):
-                return bucket[1].get("median_price", 0)
-            return 0
-
-        floor_med = _median(floor_bucket)
-        ceil_med = _median(ceil_bucket)
-
-        if floor_med and ceil_med and floor_bucket:
-            floor_lv, ceil_lv = floor_bucket[0], ceil_bucket[0]
-            t = (lv - floor_lv) / (ceil_lv - floor_lv) if ceil_lv != floor_lv else 0
-            return round(floor_med + t * (ceil_med - floor_med), 2)
-
-        if floor_med:
-            return floor_med
-        if ceil_med:
-            return ceil_med
+        raw = listings.get(cls, [])
+        if raw:
+            prices = sorted([x["price"] for x in raw if x.get("price", 0) > 0])
+            if prices:
+                return round(prices[len(prices) // 2], 2)
 
         return 0
 
