@@ -34,33 +34,80 @@ async def list_characters(
         chars = [c for c in chars if c.job_name and job_filter.lower() in c.job_name.lower()]
         total_count = len(chars)
 
-    # Enrich with fair value estimates
-    cache_key = "floor_prices_v2"
+    # Enrich with fair value estimates from floor prices + raw listings
+    cache_key = "floor_prices_v3"
     cached = await cache_get(cache_key)
     floors = (cached or {}).get("floor_prices", {}) if cached else {}
+    listings = (cached or {}).get("listings", {}) if cached else {}
     thresholds = cached.get("thresholds", [65, 120, 140, 160, 200, 220, 230, 240]) if cached else [65, 120, 140, 160, 200, 220, 230, 240]
 
-    def _get_bracket(lv: int) -> str:
-        current = "0"
-        for t in thresholds:
-            if lv >= t:
-                current = str(t)
-            else:
-                break
-        return current
-
     def _get_fair(char):
-        """Look up fair value from floor prices."""
+        """
+        Compute fair value using k-nearest-neighbor on level within class.
+        Finds the ~5 most recently listed characters of the same class with
+        similar levels and takes IQR-filtered median of their prices.
+        Falls back to bracket median if raw listing data insufficient.
+        """
         cls = char.class_name
-        bracket = _get_bracket(char.level)
-        group = floors.get(cls, {}).get(bracket)
-        if group and isinstance(group, dict):
-            return group.get("median_price", 0) or group.get("min_price", 0)
-        # Fallback: class-wide
-        cls_floors = floors.get(cls, {})
-        for v in cls_floors.values():
-            if isinstance(v, dict) and v.get("median_price"):
-                return v["median_price"]
+        lv = char.level
+
+        # Phase 1: Look for raw listings near this character's level
+        raw_listings = listings.get(cls, [])
+        if raw_listings and len(raw_listings) >= 2:
+            # Sort by level proximity, take k nearest
+            nearby = sorted(raw_listings, key=lambda x: abs(x["level"] - lv))
+            # k neighbors within ±20 levels
+            k_nearest = [x for x in nearby if abs(x["level"] - lv) <= 20][:5]
+
+            if len(k_nearest) >= 2:
+                prices = sorted([x["price"] for x in k_nearest])
+                # IQR filter
+                n = len(prices)
+                q1 = prices[n // 4]
+                q3 = prices[(3 * n) // 4]
+                iqr = q3 - q1
+                filtered = [p for p in prices if q1 - 1.5 * iqr <= p <= q3 + 1.5 * iqr]
+                if filtered:
+                    return round(filtered[len(filtered) // 2], 2)
+
+        # Phase 2: Fallback to bracket median with interpolation
+        cls_floors = floors.get(cls)
+        if not cls_floors or not isinstance(cls_floors, dict):
+            return 0
+
+        relevant_brackets = []
+        for th in sorted(thresholds):
+            if str(th) in cls_floors:
+                relevant_brackets.append((th, cls_floors[str(th)]))
+        if not relevant_brackets:
+            return 0
+
+        floor_bucket = None
+        ceil_bucket = None
+        for th, data in relevant_brackets:
+            if th <= lv:
+                floor_bucket = (th, data)
+            if th > lv and ceil_bucket is None:
+                ceil_bucket = (th, data)
+
+        def _median(bucket):
+            if bucket and isinstance(bucket[1], dict):
+                return bucket[1].get("median_price", 0)
+            return 0
+
+        floor_med = _median(floor_bucket)
+        ceil_med = _median(ceil_bucket)
+
+        if floor_med and ceil_med and floor_bucket:
+            floor_lv, ceil_lv = floor_bucket[0], ceil_bucket[0]
+            t = (lv - floor_lv) / (ceil_lv - floor_lv) if ceil_lv != floor_lv else 0
+            return round(floor_med + t * (ceil_med - floor_med), 2)
+
+        if floor_med:
+            return floor_med
+        if ceil_med:
+            return ceil_med
+
         return 0
 
     result = []
@@ -82,10 +129,10 @@ async def list_characters(
 @router.get("/floor-prices")
 async def floor_prices():
     """
-    Current floor prices by class and level bracket.
-    Uses specific levels: 65, 120, 140, 160, 200, 220, 230, 240.
+    Current floor prices by class and level bracket, plus raw listings
+    for fine-grained interpolation by level.
     """
-    cache_key = "floor_prices_v2"
+    cache_key = "floor_prices_v3"
     cached = await cache_get(cache_key)
     if cached:
         return cached
@@ -93,10 +140,6 @@ async def floor_prices():
     # Fetch more pages for accurate floors
     all_chars = await market_data_service.fetch_all_characters(max_pages=6)
 
-    # Build floor price map: class -> level_bracket -> {min_price, count}
-    floors: dict[str, dict[str, dict]] = {}
-    class_counts: dict[str, int] = {}
-    
     thresholds = [65, 120, 140, 160, 200, 220, 230, 240]
 
     def get_bracket(lv: int) -> str:
@@ -108,8 +151,10 @@ async def floor_prices():
                 break
         return current
 
-    # Collect all prices per (class, bracket) group for richer stats
     groups: dict[str, dict[str, list[float]]] = {}
+    # Per-character level+price data for interpolation
+    listings_by_class: dict[str, list[dict]] = {}
+    class_counts: dict[str, int] = {}
 
     for char in all_chars:
         if char.price <= 0:
@@ -125,7 +170,12 @@ async def floor_prices():
             groups[cls][bracket] = []
         groups[cls][bracket].append(char.price)
 
+        if cls not in listings_by_class:
+            listings_by_class[cls] = []
+        listings_by_class[cls].append({"level": char.level, "price": char.price})
+
     # Build enriched floor map
+    floors: dict[str, dict[str, dict]] = {}
     for cls, brackets in groups.items():
         floors[cls] = {}
         for bracket, prices in brackets.items():
@@ -145,6 +195,7 @@ async def floor_prices():
 
     result = {
         "floor_prices": floors,
+        "listings": listings_by_class,
         "class_counts": class_counts,
         "sample_size": len(all_chars),
         "thresholds": thresholds
