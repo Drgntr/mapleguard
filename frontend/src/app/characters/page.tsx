@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, JSX } from "react";
 import { useCharacters, useFloorPrices, useCharacterDetail, useEnrichedListings, useEnrichedCharDetail, useRecentSales } from "@/hooks/useMarketData";
 
 const CLASS_COLORS: Record<string, string> = {
@@ -59,7 +59,7 @@ function abilityColor(total: number): string {
   return "text-terminal-muted";
 }
 
-function arcaneBadge(tier: string): string {
+function arcaneBadge(tier: string): JSX.Element {
   const label = tier.replace("_", " ").toUpperCase();
   return (
     <span
