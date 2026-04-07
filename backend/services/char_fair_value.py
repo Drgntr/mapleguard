@@ -2,7 +2,7 @@
 Character Fair Value Engine — v3
 
 Components:
-1. Recent sales (Maplen.gg API) — base comparables mediana
+1. Recent sales (CharacterSaleHistory via RPC OrderMatched) — base comparables
 2. Arcane symbol value — cada nível de arcane tem preço
 3. Equipment value — starforce + potential + bonus_potential via rarity_engine
 4. Ability premium — grades dos 3 slots de ability
@@ -14,9 +14,7 @@ O fair value é construído a partir de:
   - + Premium de abilities
 """
 
-import asyncio
 import json
-from datetime import datetime, timezone
 from statistics import median
 from typing import Optional
 
@@ -33,30 +31,14 @@ from services.rarity_engine import rarity_engine
 # Estes valores são estimativas baseadas em preços de mercado de
 # arcane symbols vendidos individualmente no marketplace.
 
-# Preços aproximados por arcane symbol (em NESO) por nível/força:
-# Lv20 = 30 force (25 + 5 bônus)   → ~50k NESO cada
-# Lv12 = 18 force                   → ~25k NESO cada
-# Os 26 slots dão o force total.
-
 # Simpler: map arcane_force total → valor estimado
 # Baseado em preços do marketplace por arcane symbol individual
-ARCANE_VALUE_PER_FORCE = 50_000  # ~50k NESO por arcane force
+ARCANE_VALUE_PER_FORCE = 50_000  # ~50k NESO per arcane force
 # Bônus por set completo (mais de 18 slots preenchidos):
-ARCANE_FULL_BONUS = 1.25  # 25% bônus para set completo (390+ force = 26x15)
+ARCANE_FULL_BONUS = 1.25  # 25% bonus for full set (390+ force = 26x15)
 
 
 # ── Ability Premium ────────────────────────────────────────────────
-ABILITY_PREMIUM_PCT = {
-    0: 0.00,
-    4: 0.03,    # Rare nas 3 slots
-    8: 0.10,    # Epic
-    10: 0.20,   # Mix Epic+
-    12: 0.35,   # Unique+
-    14: 0.50,   # Legendary
-    16: 0.70,   # All Legendary
-    18: 0.90,   # All high-tier
-}
-
 
 def get_ability_premium(ability_total: int) -> float:
     if ability_total >= 18:
@@ -162,115 +144,6 @@ def compute_arcane_value(arcane_force: int) -> int:
     return base_value
 
 
-# ── Maplen.gg Sales Fetching ──────────────────────────────────────
-
-async def fetch_maplen_sales(days_back: int = 30) -> list[dict]:
-    """
-    Fetch character sales from Maplen.gg Analytics API.
-    Returns list of sale dicts with class_name, level, price, arcane_force, etc.
-    """
-    headers = {
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-        "Accept": "application/json",
-        "Origin": "https://www.maplen.gg",
-        "Referer": "https://www.maplen.gg/",
-    }
-
-    from datetime import timedelta
-    start_date = (datetime.now(timezone.utc) - timedelta(days=days_back)).strftime("%Y-%m-%d")
-
-    body = {
-        "nftType": "characters",
-        "startDate": start_date,
-        "pageNumber": 1,
-        "pageSize": 500,
-    }
-
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=20) as client:
-            resp = await client.post(
-                "https://www.maplen.gg/api/analytics/sales/all",
-                json=body,
-                headers=headers,
-            )
-            if resp.status_code != 200:
-                return []
-            data = resp.json()
-            # The API returns: {"data": [...], "totalCount": ...}
-            return data.get("data", [])
-    except Exception as e:
-        print(f"[MaplenSales] Fetch error: {e}")
-        return []
-
-
-async def get_comparable_sales(
-    cls_name: str, level: int, arcane_tier: str,
-    days_back: int = 30
-) -> list[dict]:
-    """
-    Fetch sales from Maplen.gg and filter to comparable characters:
-    - Same class, ±20 level
-    - Similar arcane tier (±1 tier)
-    Returns sorted by date desc.
-    """
-    # Try cache first
-    cache_key = f"maplen_sales_{days_back}"
-    cached = None
-
-    try:
-        from services.cache import cache_get
-        cached = await cache_get(cache_key)
-    except Exception:
-        pass
-
-    if cached is None:
-        sales = await fetch_maplen_sales(days_back)
-        # Cache for 30 min
-        try:
-            from services.cache import cache_set
-            await cache_set(cache_key, sales, ttl=1800)
-        except Exception:
-            pass
-    else:
-        sales = cached
-
-    if not sales:
-        return []
-
-    # Filter by class and level proximity
-    comparable = []
-    for s in sales:
-        sale_cls = (s.get("character", {}).get("common", {})
-                     or s.get("character", {})
-                     or {}).get("className", "") or s.get("class_name", "")
-        sale_level = (s.get("character", {}).get("common", {})
-                       or s.get("character", {}) or {}).get("level", 0) or s.get("level", 0)
-
-        if not sale_cls or sale_cls != cls_name:
-            continue
-        if abs(sale_level - level) > 20:
-            continue
-
-        comparable.append(s)
-
-    comparable.sort(key=lambda x: x.get("createdAt") or x.get("sale_date", ""), reverse=True)
-    return comparable[:50]
-
-
-async def parse_sale_price(sale: dict) -> Optional[float]:
-    """Extract sale price in NESO from Maplen.gg sale record."""
-    # priceWei, price, nesoPrice, etc.
-    price_wei = sale.get("priceWei") or sale.get("nesoWei") or sale.get("price")
-    if price_wei:
-        try:
-            return int(str(price_wei)) / 1e18
-        except (ValueError, TypeError):
-            return None
-    return None
-
-
 # ── Core Fair Value computation ───────────────────────────────────
 
 async def compute_char_fair_value(
@@ -281,7 +154,7 @@ async def compute_char_fair_value(
 ) -> tuple[float, str, str]:
     """
     Compute fair value:
-    1. Find comparable recent sales (Maplen.gg + local DB)
+    1. Find comparable recent sales (local DB, captured via RPC OrderMatched)
     2. Use median as base
     3. Add arcane symbol value
     4. Add equipment item value
@@ -289,7 +162,7 @@ async def compute_char_fair_value(
     """
     breakdown = {}
 
-    # === 1. Comparable sales (local DB) ===
+    # === 1. Comparable sales (local DB from RPC watcher) ===
     sales_prices = []
 
     async with async_session() as session:
