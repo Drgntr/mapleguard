@@ -93,21 +93,44 @@ async def list_characters(
     except Exception:
         pass  # DB not ready or no enriched data yet
 
-    # Compute median price per class from current listings for fallback
-    class_medians: dict[str, float] = {}
+    # Compute median price per class + level bracket from current listings for fallback
+    class_bracket_medians: dict[str, dict[str, float]] = {}
     for c in chars:
-        if c.price > 0:
-            cls = c.class_name
-            if cls not in class_medians:
-                class_medians[cls] = []
-            class_medians[cls].append(c.price)
-    for cls in class_medians:
-        prices = sorted(class_medians[cls])
-        class_medians[cls] = prices[len(prices) // 2]
+        if c.price <= 0:
+            continue
+        cls = c.class_name
+        # Determine level bracket
+        bracket = "0"
+        for t in FLOOR_THRESHOLDS:
+            if c.level >= t:
+                bracket = str(t)
+            else:
+                break
+        if cls not in class_bracket_medians:
+            class_bracket_medians[cls] = {}
+        if bracket not in class_bracket_medians[cls]:
+            class_bracket_medians[cls][bracket] = []
+        class_bracket_medians[cls][bracket].append(c.price)
+    for cls in class_bracket_medians:
+        for bracket in class_bracket_medians[cls]:
+            prices = sorted(class_bracket_medians[cls][bracket])
+            class_bracket_medians[cls][bracket] = prices[len(prices) // 2]
+
+    def _get_level_bracket(level: int) -> str:
+        bracket = "0"
+        for t in FLOOR_THRESHOLDS:
+            if level >= t:
+                bracket = str(t)
+            else:
+                break
+        return bracket
 
     def _get_fair_fallback(char):
-        """Fallback: median price for same class."""
-        return class_medians.get(char.class_name, 0)
+        """Fallback: median price for same class and level bracket (not entire class)."""
+        bracket = _get_level_bracket(char.level)
+        if char.class_name in class_bracket_medians:
+            return class_bracket_medians[char.class_name].get(bracket, 0)
+        return 0
 
     result = []
     for c in chars:
@@ -120,15 +143,21 @@ async def list_characters(
             d["fair_confidence"] = ev["confidence"]
             d["arcane_tier"] = ev["arcane_tier"]
             d["ability_total"] = ev["ability_total"]
+            d["is_enriched"] = True
         else:
-            d["fair_value_estimate"] = _get_fair_fallback(c)
-            # Derive approximate arcane tier from level (chars <200 have no arcane/V-skill)
-            if c.level >= 200:
-                d["arcane_tier"] = "unknown"  # Will show as unknown until enriched
-                d["ability_total"] = 0
+            # <200 chars: show level-based floor estimate
+            # 200+ chars: show 0 (need enrichment - arcane/gear/value unknown without V-skill data)
+            if c.level < 200:
+                fallback = _get_fair_fallback(c)
+                d["fair_value_estimate"] = fallback
+                d["fair_confidence"] = "floor_estimate"
+                d["is_enriched"] = False
             else:
-                d["arcane_tier"] = "none"
-                d["ability_total"] = 0
+                d["fair_value_estimate"] = 0
+                d["fair_confidence"] = "pending_enrich"
+                d["is_enriched"] = False
+            d["arcane_tier"] = "none" if c.level < 200 else "unknown"
+            d["ability_total"] = 0
 
         result.append(d)
 
