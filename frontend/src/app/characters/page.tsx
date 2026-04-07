@@ -99,9 +99,10 @@ export default function CharactersPage() {
   const detail = detailData?.character;
 
   const currentSubclasses = classFilter === "all_classes" ? [] : SUBCLASSES[classFilter] || [];
-  const displayListings = view === "explore" ? chars : view === "recent-sales" ? sales : enriched;
-  const displayTotal = view === "explore" ? data?.count : enrichedTotal;
-  const displayLoading = view === "underpriced" ? enrichedLoading : isLoading;
+  const displayListings = view === "explore" ? chars : view === "recent-sales" ? sales : chars;
+  const displayCount = data?.count || 0;
+  const displayTotal = view === "recent-sales" ? sales.length : displayCount;
+  const displayLoading = isLoading;
 
   return (
     <div className="space-y-6">
@@ -256,7 +257,7 @@ export default function CharactersPage() {
               {view === "underpriced" ? "UNDERPRICED LISTINGS" : view === "recent-sales" ? "RECENT SALES" : "EXPLORER"}
             </span>
             <span className="text-[10px] font-mono text-terminal-muted uppercase">
-              {(view === "explore" ? data?.count : enrichedTotal)?.toLocaleString?.() || "0"} results
+              {displayTotal?.toLocaleString?.() || "0"} results
             </span>
           </div>
           <div className="max-h-[600px] overflow-y-auto">
@@ -332,7 +333,7 @@ export default function CharactersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {view === "underpriced" ? enriched.map((char: any) => {
+                  {view === "underpriced" ? chars.map((char: any) => {
                     const vsFair =
                       char.fair_value > 0 && char.price > 0
                         ? ((char.price - char.fair_value) / char.fair_value) * 100
