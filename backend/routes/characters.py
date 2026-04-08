@@ -133,7 +133,11 @@ async def list_characters(
             return class_bracket_medians[char.class_name].get(bracket, 0)
         return 0
 
-    # Load fair_vBreakdown for enriched chars
+    # Load fair_breakdown for enriched chars
+    result = []
+    for c in chars:
+        d = c.model_dump()
+
         if c.token_id in enriched_map:
             ev = enriched_map[c.token_id]
             d["fair_value_estimate"] = ev["fair_value"]

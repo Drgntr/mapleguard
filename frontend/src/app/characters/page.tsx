@@ -334,9 +334,10 @@ export default function CharactersPage() {
                 </thead>
                 <tbody>
                   {view === "underpriced" ? chars.map((char: any) => {
+                    const fairValue = char.fair_value_estimate ?? char.fair_value ?? 0;
                     const vsFair =
-                      char.fair_value > 0 && char.price > 0
-                        ? ((char.price - char.fair_value) / char.fair_value) * 100
+                      fairValue > 0 && char.price > 0
+                        ? ((char.price - fairValue) / fairValue) * 100
                         : null;
                     return (
                       <tr
@@ -378,9 +379,9 @@ export default function CharactersPage() {
                           {char.price?.toLocaleString()}
                         </td>
                         <td>
-                          {char.fair_value > 0 ? (
+                          {fairValue > 0 ? (
                             <span className="text-terminal-cyan font-mono text-xs tabular-nums">
-                              {char.fair_value.toLocaleString()}
+                              {fairValue.toLocaleString()}
                             </span>
                           ) : (
                             <span className="text-terminal-yellow font-mono text-xs animate-pulse">
