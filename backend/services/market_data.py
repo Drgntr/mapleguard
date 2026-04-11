@@ -375,6 +375,36 @@ class MarketDataService:
                 await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
                 return char
 
+            # 1b. Fallback: Navigator character info API
+            try:
+                nav_url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
+                nav_data = self._get(nav_url, CHAR_HEADERS)
+                char_node = nav_data.get("character") if nav_data else None
+                if char_node:
+                    # Reshape: from_detail_api expects name/tokenId/imageUrl at top level
+                    reshaped = {
+                        "tokenId": char_node.get("tokenInfo", {}).get("tokenId", ""),
+                        "assetKey": char_node.get("assetKey", token_id),
+                        "name": char_node.get("name", ""),
+                        "imageUrl": char_node.get("imageUrl", ""),
+                        "character": {
+                            "common": char_node.get("common", {}),
+                            "apStat": char_node.get("apStat", {}),
+                            "wearing": char_node.get("wearing", {}),
+                            "hyperStat": char_node.get("hyperStat", {}),
+                            "ability": char_node.get("ability", {}),
+                        },
+                    }
+                    char = CharacterListing.from_detail_api(reshaped)
+                    if char:
+                        char.asset_key = token_id
+                        if not char.token_id or char.token_id in ("", "None"):
+                            char.token_id = token_id
+                        await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
+                        return char
+            except Exception as e:
+                print(f"[Navigator] Info fallback error for {token_id}: {e}")
+
         # 2. Open API — by numeric token ID
         if not token_id.upper().startswith("CHAR"):
             char = await self._fetch_openapi_character_detail(token_id, by_asset_key=False)
