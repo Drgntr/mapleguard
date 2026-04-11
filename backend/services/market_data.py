@@ -368,20 +368,13 @@ class MarketDataService:
         if cached:
             return CharacterListing(**cached)
 
-        # 1. Open API — by asset key (CHAR...) with full item enrichment
+        # 1. Navigator character info API (fast, reliable) — for CHAR asset keys
         if token_id.upper().startswith("CHAR"):
-            char = await self._fetch_openapi_character_detail(token_id, by_asset_key=True)
-            if char:
-                await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
-                return char
-
-            # 1b. Fallback: Navigator character info API
             try:
                 nav_url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
                 nav_data = self._get(nav_url, CHAR_HEADERS)
                 char_node = nav_data.get("character") if nav_data else None
                 if char_node:
-                    # Reshape: from_detail_api expects name/tokenId/imageUrl at top level
                     reshaped = {
                         "tokenId": char_node.get("tokenInfo", {}).get("tokenId", ""),
                         "assetKey": char_node.get("assetKey", token_id),
@@ -403,7 +396,13 @@ class MarketDataService:
                         await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
                         return char
             except Exception as e:
-                print(f"[Navigator] Info fallback error for {token_id}: {e}")
+                print(f"[Navigator] Info error for {token_id}: {e}")
+
+            # 1b. Fallback: Open API with item enrichment (slower, may fail)
+            char = await self._fetch_openapi_character_detail(token_id, by_asset_key=True)
+            if char:
+                await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
+                return char
 
         # 2. Open API — by numeric token ID
         if not token_id.upper().startswith("CHAR"):

@@ -27,6 +27,7 @@ export default function CalculatorPage() {
     const [charSearching, setCharSearching] = useState(false);
     const [charResults, setCharResults] = useState<any[]>([]);
     const [selectedChar, setSelectedChar] = useState<any>(null);
+    const [charError, setCharError] = useState("");
 
     const [baseCp, setBaseCp] = useState<number | null>(null);
     const [selectedItem, setSelectedItem] = useState<any>(null);
@@ -51,73 +52,92 @@ export default function CalculatorPage() {
     const [showBreakdown, setShowBreakdown] = useState(false);
     const [itemLevel, setItemLevel] = useState(200);
 
+    const loadCharDetail = async (tokenId: string) => {
+        const res = await fetch(`/api/characters/${encodeURIComponent(tokenId)}/detail`);
+        if (!res.ok) throw new Error(`Detail failed: ${res.status}`);
+        const data = await res.json();
+        if (!data.character) throw new Error("No character data returned");
+        const char = data.character;
+
+        setSelectedChar(char);
+
+        // Extract real CP
+        const realCp = char.char_cp || char.ap_stats?.combat_power?.total || 0;
+        setBaseCp(realCp > 0 ? realCp : 0);
+
+        if (char.ap_stats) {
+            const s = char.ap_stats;
+            const mainVal = Math.round(Math.max(s.str_stat?.total || 0, s.int_stat?.total || 0, s.dex?.total || 0, s.luk?.total || 0));
+            const subMap: Record<string, string> = {
+                Archer: 'dex', Thief: 'luk', Warrior: 'str', Magician: 'int', Pirate: 'luk',
+            };
+            const subKey = subMap[char.class_name] || 'dex';
+            const subVal = Math.round(s[`${subKey}_stat`]?.total || s[subKey]?.total || 500);
+            setOldStats({
+                main_stat: mainVal,
+                sub_stat: subVal,
+                attack: Math.round(s.pad?.total || s.physicalAttack?.total || 500),
+                attack_percent: Math.round(s.attack?.total || s.attack_percent || 10),
+                damage_percent: Math.round(s.damage?.total || 20),
+                boss_damage_percent: Math.round(s.boss_monster_damage?.total || 10),
+                final_damage_percent: Math.round(s.final_damage?.total || 0),
+                crit_damage_percent: Math.round(s.critical_damage?.total || 30),
+            });
+            setNewStats(prev => ({
+                ...prev,
+                main_stat: mainVal,
+                sub_stat: subVal,
+                attack: Math.round(s.pad?.total || s.physicalAttack?.total || 500),
+            }));
+
+            if (char.level) {
+                setLegionBlocks(char.level >= 250 ? 7 : char.level >= 200 ? 4 : char.level >= 140 ? 3 : char.level >= 100 ? 2 : 0);
+                setCollectionScore(char.level >= 200 ? 250 : char.level >= 140 ? 60 : 0);
+            }
+        }
+    };
+
     const handleCharSearch = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!charQuery) return;
         setCharSearching(true);
         setCharResults([]);
         setSelectedChar(null);
+        setCharError("");
         try {
             const res = await fetch(`/api/characters/search?query=${encodeURIComponent(charQuery)}`);
+            if (!res.ok) throw new Error(`Search failed: ${res.status}`);
             const data = await res.json();
-            if (data.results?.length === 1) {
-                await handleSelectChar(data.results[0].token_id);
-                return;
+            const results = data.results || [];
+            if (results.length === 0) {
+                setCharError("No characters found");
+            } else if (results.length === 1) {
+                try {
+                    await loadCharDetail(results[0].token_id);
+                } catch (detailErr: any) {
+                    console.error("Detail load failed:", detailErr);
+                    setCharError(`Failed to load character: ${detailErr.message}`);
+                }
             } else {
-                setCharResults(data.results || []);
+                setCharResults(results);
             }
-        } catch (e) { console.error(e); }
+        } catch (e: any) {
+            console.error("Search failed:", e);
+            setCharError(`Search error: ${e.message}`);
+        }
         setCharSearching(false);
     };
 
     const handleSelectChar = async (tokenId: string) => {
         setCharSearching(true);
         setCharResults([]);
+        setCharError("");
         try {
-            const res = await fetch(`/api/characters/${encodeURIComponent(tokenId)}/detail`);
-            const data = await res.json();
-            if (data.character) {
-                setSelectedChar(data.character);
-                const char = data.character;
-
-                // Extract real CP from character
-                const realCp = char.char_cp || char.ap_stats?.combat_power?.total || 0;
-                if (realCp > 0) setBaseCp(realCp);
-                else setBaseCp(0);
-
-                if (char.ap_stats) {
-                    const s = char.ap_stats;
-                    const mainVal = Math.round(Math.max(s.str_stat?.total || 0, s.int_stat?.total || 0, s.dex?.total || 0, s.luk?.total || 0));
-                    const subMap: Record<string, string> = {
-                        Archer: 'dex', Thief: 'luk', Warrior: 'str', Magician: 'int', Pirate: 'luk',
-                    };
-                    const subKey = subMap[char.class_name] || 'dex';
-                    const subVal = Math.round(s[`${subKey}_stat`]?.total || s[subKey]?.total || 500);
-                    setOldStats({
-                        main_stat: mainVal,
-                        sub_stat: subVal,
-                        attack: Math.round(s.pad?.total || s.physicalAttack?.total || 500),
-                        attack_percent: Math.round(s.attack?.total || s.attack_percent || 10),
-                        damage_percent: Math.round(s.damage?.total || 20),
-                        boss_damage_percent: Math.round(s.boss_monster_damage?.total || 10),
-                        final_damage_percent: Math.round(s.final_damage?.total || 0),
-                        crit_damage_percent: Math.round(s.critical_damage?.total || 30),
-                    });
-                    setNewStats(prev => ({
-                        ...prev,
-                        main_stat: mainVal,
-                        sub_stat: subVal,
-                        attack: Math.round(s.pad?.total || s.physicalAttack?.total || 500),
-                    }));
-
-                    // Auto-set legion/collection defaults from character level
-                    if (char.level) {
-                        setLegionBlocks(char.level >= 250 ? 7 : char.level >= 200 ? 4 : char.level >= 140 ? 3 : char.level >= 100 ? 2 : 0);
-                        setCollectionScore(char.level >= 200 ? 250 : char.level >= 140 ? 60 : 0);
-                    }
-                }
-            }
-        } catch (e) { console.error(e); }
+            await loadCharDetail(tokenId);
+        } catch (e: any) {
+            console.error("Detail load failed:", e);
+            setCharError(`Failed to load character: ${e.message}`);
+        }
         setCharSearching(false);
     };
 
@@ -265,6 +285,16 @@ export default function CalculatorPage() {
                                         <div className="w-48 bg-black/40 rounded-full h-1.5 overflow-hidden">
                                             <div className="h-full bg-gradient-to-r from-terminal-accent/40 via-terminal-accent to-terminal-accent/40 rounded-full" style={{ width: '70%', animation: 'loading 1.5s ease-in-out infinite' }} />
                                         </div>
+                                    </div>
+                                )}
+
+                                {charError && !charSearching && (
+                                    <div className="py-8 flex flex-col items-center justify-center gap-3 animate-in fade-in duration-300">
+                                        <div className="w-12 h-12 rounded-full border-2 border-red-500/30 flex items-center justify-center">
+                                            <span className="text-red-500 text-xl font-black">!</span>
+                                        </div>
+                                        <div className="text-sm font-black text-red-400 tracking-wider uppercase">{charError}</div>
+                                        <button onClick={() => setCharError("")} className="text-[10px] text-white/30 hover:text-white/60 transition-colors uppercase tracking-widest">Dismiss</button>
                                     </div>
                                 )}
 

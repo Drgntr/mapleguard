@@ -8,6 +8,7 @@ export default function VisualizerPage() {
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState<any[]>([]);
     const [selectedChar, setSelectedChar] = useState<any>(null);
+    const [searchError, setSearchError] = useState("");
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -16,26 +17,38 @@ export default function VisualizerPage() {
         setLoading(true);
         setResults([]);
         setSelectedChar(null);
+        setSearchError("");
         try {
-            const res = await fetch(`/api/characters/search?query=${query}`);
+            const res = await fetch(`/api/characters/search?query=${encodeURIComponent(query)}`);
+            if (!res.ok) throw new Error(`Search failed: ${res.status}`);
             const data = await res.json();
             if (data.results && data.results.length > 0) {
                 setResults(data.results);
+            } else {
+                setSearchError("No characters found");
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
+            setSearchError(err.message || "Search failed");
         }
         setLoading(false);
     };
 
     const handleSelect = async (tokenId: string) => {
         setLoading(true);
+        setSearchError("");
         try {
-            const res = await fetch(`/api/characters/${tokenId}/detail`);
+            const res = await fetch(`/api/characters/${encodeURIComponent(tokenId)}/detail`);
+            if (!res.ok) throw new Error(`Detail failed: ${res.status}`);
             const data = await res.json();
-            if (data.character) setSelectedChar(data.character);
-        } catch (err) {
+            if (data.character) {
+                setSelectedChar(data.character);
+            } else {
+                setSearchError("Character data not available");
+            }
+        } catch (err: any) {
             console.error(err);
+            setSearchError(err.message || "Failed to load character");
         }
         setLoading(false);
     };
@@ -108,6 +121,12 @@ export default function VisualizerPage() {
                             <div className="w-full bg-terminal-surface rounded-full h-1 overflow-hidden">
                                 <div className="h-full bg-terminal-cyan/60 rounded-full animate-[loading_1.5s_ease-in-out_infinite]" style={{ width: '60%', animation: 'loading 1.5s ease-in-out infinite' }} />
                             </div>
+                        </div>
+                    )}
+
+                    {searchError && !loading && (
+                        <div className="p-4 text-center bg-terminal-panel border border-terminal-red/30 rounded-lg">
+                            <div className="text-xs font-mono text-terminal-red font-bold">{searchError}</div>
                         </div>
                     )}
 
