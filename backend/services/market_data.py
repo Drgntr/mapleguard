@@ -368,13 +368,66 @@ class MarketDataService:
         if cached:
             return CharacterListing(**cached)
 
-        # 1. Navigator character info API (fast, reliable) — for CHAR asset keys
+        # 1. Navigator + Open API item enrichment — for CHAR asset keys
         if token_id.upper().startswith("CHAR"):
             try:
                 nav_url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
                 nav_data = self._get(nav_url, CHAR_HEADERS)
                 char_node = nav_data.get("character") if nav_data else None
                 if char_node:
+                    wearing = char_node.get("wearing", {})
+
+                    # Collect all ITEM asset keys for enrichment
+                    item_asset_keys: list[str] = []
+                    def _walk_nav(d):
+                        if not isinstance(d, dict):
+                            return
+                        ak = d.get("assetKey")
+                        if ak and isinstance(ak, str) and ak.upper().startswith("ITEM"):
+                            item_asset_keys.append(ak)
+                            return
+                        for v in d.values():
+                            if isinstance(v, dict):
+                                _walk_nav(v)
+                            elif isinstance(v, list):
+                                for item in v:
+                                    if isinstance(item, dict):
+                                        _walk_nav(item)
+                    _walk_nav(wearing)
+                    item_asset_keys = list(set(item_asset_keys))
+
+                    # Enrich items via Open API /items/{assetKey}
+                    rich_items: dict[str, dict] = {}
+                    if item_asset_keys:
+                        print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} items for {token_id}...")
+                        for ak in item_asset_keys:
+                            try:
+                                item_data = self._get_openapi(f"/items/{ak}")
+                                if item_data:
+                                    rich_items[ak] = item_data
+                            except Exception:
+                                pass
+
+                    # Merge enriched data into wearing slots
+                    for equip_type in ("equip", "cashEquip", "pet"):
+                        slots = wearing.get(equip_type, {})
+                        if not isinstance(slots, dict):
+                            continue
+                        for slot_name, slot_data in slots.items():
+                            if not isinstance(slot_data, dict) or not slot_data:
+                                continue
+                            ak = slot_data.get("assetKey", "")
+                            if ak and ak in rich_items:
+                                rich = rich_items[ak].get("item", {})
+                                slot_data["enhance"] = rich.get("enhance", {})
+                                slot_data["stats"] = rich.get("stats", {})
+                                slot_data["common"] = rich.get("common", {})
+                                name = rich.get("common", {}).get("itemName", "")
+                                if name:
+                                    slot_data["name"] = name
+                                    slot_data["itemName"] = name
+                                slot_data["imageUrl"] = slot_data.get("imageUrl") or rich.get("image", {}).get("imageUrl", "")
+
                     reshaped = {
                         "tokenId": char_node.get("tokenInfo", {}).get("tokenId", ""),
                         "assetKey": char_node.get("assetKey", token_id),
@@ -383,7 +436,7 @@ class MarketDataService:
                         "character": {
                             "common": char_node.get("common", {}),
                             "apStat": char_node.get("apStat", {}),
-                            "wearing": char_node.get("wearing", {}),
+                            "wearing": wearing,
                             "hyperStat": char_node.get("hyperStat", {}),
                             "ability": char_node.get("ability", {}),
                         },
@@ -398,7 +451,7 @@ class MarketDataService:
             except Exception as e:
                 print(f"[Navigator] Info error for {token_id}: {e}")
 
-            # 1b. Fallback: Open API with item enrichment (slower, may fail)
+            # 1b. Full fallback: Open API character + item enrichment
             char = await self._fetch_openapi_character_detail(token_id, by_asset_key=True)
             if char:
                 await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)

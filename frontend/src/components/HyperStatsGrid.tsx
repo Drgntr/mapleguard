@@ -28,6 +28,7 @@ const STAT_LABELS: Record<string, string> = {
     arcaneForce: "ARCANE FORCE",
     mesoDropRate: "MESO DROP",
     itemDropRate: "ITEM DROP",
+    expEarned: "EXP",
 };
 
 export default function HyperStatsGrid({ hyperStats }: HyperStatsGridProps) {
