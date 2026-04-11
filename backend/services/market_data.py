@@ -372,7 +372,14 @@ class MarketDataService:
         if token_id.upper().startswith("CHAR"):
             try:
                 nav_url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
-                nav_data = self._get(nav_url, CHAR_HEADERS)
+                # Try curl_cffi first, fall back to httpx if it fails
+                try:
+                    nav_data = self._get(nav_url, CHAR_HEADERS)
+                except Exception as curl_err:
+                    print(f"[Navigator] curl_cffi failed, trying httpx: {curl_err}")
+                    r = httpx.get(nav_url, headers=CHAR_HEADERS, timeout=20.0)
+                    r.raise_for_status()
+                    nav_data = r.json()
                 char_node = nav_data.get("character") if nav_data else None
                 if char_node:
                     wearing = char_node.get("wearing", {})
@@ -453,7 +460,9 @@ class MarketDataService:
                         await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
                         return char
             except Exception as e:
+                import traceback
                 print(f"[Navigator] Info error for {token_id}: {e}")
+                traceback.print_exc()
 
             # 1b. Full fallback: Open API character + item enrichment
             char = await self._fetch_openapi_character_detail(token_id, by_asset_key=True)
