@@ -363,7 +363,7 @@ class MarketDataService:
     async def fetch_character_detail(self, token_id: str) -> Optional[CharacterListing]:
         """Fetch full character detail with AP stats and equipment.
         Uses MSU Open API (primary) with marketplace fallback."""
-        cache_key = f"char_detail_v11:{token_id}"
+        cache_key = f"char_detail_v12:{token_id}"
         cached = await cache_get(cache_key)
         if cached:
             return CharacterListing(**cached)

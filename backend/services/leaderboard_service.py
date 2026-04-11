@@ -47,7 +47,7 @@ class LeaderboardService:
         level = getattr(char, "level", 0) or 0
 
         # Check cache for detail with combat_power
-        cache_key = f"char_detail_v11:{char.token_id}"
+        cache_key = f"char_detail_v12:{char.token_id}"
         cached_detail = await cache_get(cache_key)
 
         if cached_detail and cached_detail.get("ap_stats"):
