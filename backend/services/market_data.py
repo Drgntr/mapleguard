@@ -368,15 +368,19 @@ class MarketDataService:
         if cached:
             return CharacterListing(**cached)
 
-        # 1. Navigator + Open API item enrichment — for CHAR asset keys
+        # 1. Open API with item enrichment (includes enhance data natively)
         if token_id.upper().startswith("CHAR"):
+            char = await self._fetch_openapi_character_detail(token_id, by_asset_key=True)
+            if char:
+                await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
+                return char
+
+            # 1b. Fallback: Navigator + per-item Open API enrichment
             try:
                 nav_url = f"https://msu.io/navigator/api/navigator/characters/{token_id}/info"
-                # Try curl_cffi first, fall back to httpx if it fails
                 try:
                     nav_data = self._get(nav_url, CHAR_HEADERS)
-                except Exception as curl_err:
-                    print(f"[Navigator] curl_cffi failed, trying httpx: {curl_err}")
+                except Exception:
                     r = httpx.get(nav_url, headers=CHAR_HEADERS, timeout=20.0)
                     r.raise_for_status()
                     nav_data = r.json()
@@ -384,7 +388,7 @@ class MarketDataService:
                 if char_node:
                     wearing = char_node.get("wearing", {})
 
-                    # Collect all ITEM asset keys for enrichment
+                    # Collect ITEM asset keys for enrichment
                     item_asset_keys: list[str] = []
                     def _walk_nav(d):
                         if not isinstance(d, dict):
@@ -397,22 +401,21 @@ class MarketDataService:
                             if isinstance(v, dict):
                                 _walk_nav(v)
                             elif isinstance(v, list):
-                                for item in v:
-                                    if isinstance(item, dict):
-                                        _walk_nav(item)
+                                for it in v:
+                                    if isinstance(it, dict):
+                                        _walk_nav(it)
                     _walk_nav(wearing)
                     item_asset_keys = list(set(item_asset_keys))
 
-                    # Enrich items via Open API /items/{assetKey} (rate limit: 10 req/s)
+                    # Enrich items via Open API (rate limit: 10 req/s)
                     rich_items: dict[str, dict] = {}
                     if item_asset_keys:
-                        print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} items for {token_id}...")
+                        print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} items...")
                         for i, ak in enumerate(item_asset_keys):
                             try:
                                 item_data = self._get_openapi(f"/items/{ak}")
                                 if item_data:
                                     rich_items[ak] = item_data
-                                # Pace to stay under 10 req/s rate limit
                                 if i < len(item_asset_keys) - 1:
                                     await asyncio.sleep(0.12)
                             except Exception:
@@ -425,7 +428,7 @@ class MarketDataService:
                         if not isinstance(slots, dict):
                             continue
                         for slot_name, slot_data in slots.items():
-                            if not isinstance(slot_data, dict) or not slot_data:
+                            if not isinstance(slot_data, dict):
                                 continue
                             ak = slot_data.get("assetKey", "")
                             if ak and ak in rich_items:
@@ -437,7 +440,6 @@ class MarketDataService:
                                 if name:
                                     slot_data["name"] = name
                                     slot_data["itemName"] = name
-                                slot_data["imageUrl"] = slot_data.get("imageUrl") or rich.get("image", {}).get("imageUrl", "")
 
                     reshaped = {
                         "tokenId": char_node.get("tokenInfo", {}).get("tokenId", ""),
@@ -460,15 +462,7 @@ class MarketDataService:
                         await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
                         return char
             except Exception as e:
-                import traceback
-                print(f"[Navigator] Info error for {token_id}: {e}")
-                traceback.print_exc()
-
-            # 1b. Full fallback: Open API character + item enrichment
-            char = await self._fetch_openapi_character_detail(token_id, by_asset_key=True)
-            if char:
-                await cache_set(cache_key, char.model_dump(), ttl=settings.CACHE_TTL_LONG)
-                return char
+                print(f"[Navigator] Fallback error for {token_id}: {e}")
 
         # 2. Open API — by numeric token ID
         if not token_id.upper().startswith("CHAR"):
@@ -616,14 +610,8 @@ class MarketDataService:
         from models.character import CharacterListing
 
         # Build enriched wearing: merge rich_items data into the wearing slots
-        for equip_type in ("equip", "cashEquip", "pet"):
-            slots = wearing.get(equip_type if equip_type != "cashEquip" else "decoEquip", {})
-            if equip_type == "equip":
-                slots = wearing.get("equip", {})
-            elif equip_type == "cashEquip":
-                slots = wearing.get("decoEquip", {})
-            elif equip_type == "pet":
-                slots = wearing.get("pet", {})
+        for wear_key in ("equip", "decoEquip", "pet"):
+            slots = wearing.get(wear_key, {})
 
             if not isinstance(slots, dict):
                 continue

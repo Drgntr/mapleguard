@@ -474,6 +474,10 @@ class CharacterListing(BaseModel):
         """Parse from MSU Open API /v1rc1/characters/... all-in-one response.
         Reshapes the Open API format to match what from_detail_api expects."""
         common = raw_char.get("common", {})
+        wearing = dict(raw_char.get("wearing", {}))
+        # Open API uses "decoEquip" for cash items; from_detail_api expects "cashEquip"
+        if "decoEquip" in wearing and "cashEquip" not in wearing:
+            wearing["cashEquip"] = wearing.pop("decoEquip")
         reshaped = {
             "tokenId": raw_char.get("tokenInfo", {}).get("tokenId", ""),
             "name": common.get("name", ""),
@@ -482,9 +486,9 @@ class CharacterListing(BaseModel):
             "character": {
                 "common": common,
                 "apStat": raw_char.get("apStat", {}),
-                "wearing": raw_char.get("wearing", {}),
+                "wearing": wearing,
                 "hyperStat": raw_char.get("hyperStat", {}),
-                "arcaneSymbols": raw_char.get("wearing", {}).get("arcaneSymbols", {}),
+                "arcaneSymbols": wearing.get("arcaneSymbols", {}),
             },
         }
         return CharacterListing.from_detail_api(reshaped)
