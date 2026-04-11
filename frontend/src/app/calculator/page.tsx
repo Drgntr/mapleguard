@@ -229,12 +229,43 @@ export default function CalculatorPage() {
                                         placeholder="NICKNAME / TOKEN..."
                                         value={charQuery}
                                         onChange={(e) => setCharQuery(e.target.value)}
-                                        className="flex-1 bg-black/60 border border-white/10 text-terminal-text px-5 py-4 text-sm outline-none focus:border-terminal-accent transition-all rounded-lg font-mono placeholder:text-white/10 focus:ring-1 focus:ring-terminal-accent/20"
+                                        disabled={charSearching}
+                                        className={`flex-1 bg-black/60 border text-terminal-text px-5 py-4 text-sm outline-none transition-all rounded-lg font-mono placeholder:text-white/10 ${
+                                            charSearching
+                                                ? "border-terminal-accent/50 opacity-60 cursor-not-allowed"
+                                                : "border-white/10 focus:border-terminal-accent focus:ring-1 focus:ring-terminal-accent/20"
+                                        }`}
                                     />
-                                    <button type="submit" disabled={charSearching} className="bg-terminal-accent text-black px-6 py-4 text-xs font-black hover:scale-105 active:scale-95 disabled:opacity-50 rounded-lg transition-all shadow-[0_0_30px_rgba(var(--terminal-accent),0.3)]">
-                                        {charSearching ? "..." : "SCAN"}
+                                    <button type="submit" disabled={charSearching} className={`flex items-center justify-center gap-2 text-black px-6 py-4 text-xs font-black rounded-lg transition-all ${
+                                        charSearching
+                                            ? "bg-terminal-accent animate-pulse shadow-[0_0_40px_rgba(var(--terminal-accent),0.6)] scale-105"
+                                            : "bg-terminal-accent hover:scale-105 active:scale-95 disabled:opacity-50 shadow-[0_0_30px_rgba(var(--terminal-accent),0.3)]"
+                                    }`}>
+                                        {charSearching && (
+                                            <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                        )}
+                                        {charSearching ? "SCANNING..." : "SCAN"}
                                     </button>
                                 </form>
+
+                                {charSearching && !selectedChar && charResults.length === 0 && (
+                                    <div className="py-12 flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                                        <div className="relative w-16 h-16">
+                                            <div className="absolute inset-0 border-2 border-terminal-accent/20 rounded-full" />
+                                            <div className="absolute inset-0 border-2 border-transparent border-t-terminal-accent rounded-full animate-spin" />
+                                            <div className="absolute inset-2 border-2 border-transparent border-b-terminal-accent/60 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '0.8s' }} />
+                                        </div>
+                                        <div className="text-sm font-black text-terminal-accent tracking-[0.3em] uppercase animate-pulse">
+                                            SCANNING TARGET...
+                                        </div>
+                                        <div className="w-48 bg-black/40 rounded-full h-1.5 overflow-hidden">
+                                            <div className="h-full bg-gradient-to-r from-terminal-accent/40 via-terminal-accent to-terminal-accent/40 rounded-full" style={{ width: '70%', animation: 'loading 1.5s ease-in-out infinite' }} />
+                                        </div>
+                                    </div>
+                                )}
 
                                 {selectedChar ? (
                                     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -269,14 +300,14 @@ export default function CalculatorPage() {
                                             </div>
                                         ))}
                                     </div>
-                                ) : (
+                                ) : !charSearching ? (
                                     <div className="py-24 flex flex-col items-center justify-center opacity-10 text-white gap-6">
                                         <div className="w-20 h-20 rounded-full border border-dashed border-white/40 flex items-center justify-center">
                                             <div className="w-10 h-10 bg-white/20 rounded-full animate-ping" />
                                         </div>
                                         <span className="text-[12px] font-black tracking-[0.5em] uppercase text-center">Awaiting Target Acquisition</span>
                                     </div>
-                                )}
+                                ) : null}
                             </div>
 
                             {/* System Differential Analysis (Moved here from center) */}

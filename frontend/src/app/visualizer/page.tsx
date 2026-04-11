@@ -66,7 +66,12 @@ export default function VisualizerPage() {
                                 placeholder="Nickname or CHAR..."
                                 value={query}
                                 onChange={(e) => setQuery(e.target.value)}
-                                className="w-full bg-terminal-surface border border-terminal-border pl-10 pr-3 py-2 rounded text-xs font-mono text-terminal-text focus:border-terminal-cyan outline-none transition-colors"
+                                disabled={loading}
+                                className={`w-full bg-terminal-surface border pl-10 pr-3 py-2 rounded text-xs font-mono text-terminal-text outline-none transition-all ${
+                                    loading
+                                        ? "border-terminal-cyan/50 opacity-60 cursor-not-allowed"
+                                        : "border-terminal-border focus:border-terminal-cyan"
+                                }`}
                             />
                             <svg className="w-4 h-4 text-terminal-muted absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -75,14 +80,35 @@ export default function VisualizerPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="bg-terminal-cyan/20 hover:bg-terminal-cyan/30 text-terminal-cyan border border-terminal-cyan/50 px-4 py-2 rounded text-xs font-mono font-bold transition-colors disabled:opacity-50"
+                            className={`flex items-center gap-2 border px-4 py-2 rounded text-xs font-mono font-bold transition-all ${
+                                loading
+                                    ? "bg-terminal-cyan/30 border-terminal-cyan text-terminal-cyan animate-pulse shadow-[0_0_15px_rgba(var(--terminal-cyan),0.4)]"
+                                    : "bg-terminal-cyan/20 hover:bg-terminal-cyan/30 text-terminal-cyan border-terminal-cyan/50 disabled:opacity-50"
+                            }`}
                         >
-                            SEARCH
+                            {loading && (
+                                <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                            )}
+                            {loading ? "SEARCHING..." : "SEARCH"}
                         </button>
                     </form>
 
                     {loading && !selectedChar && (
-                        <div className="p-4 text-center text-xs font-mono text-terminal-muted animate-pulse">Scanning registry...</div>
+                        <div className="p-6 flex flex-col items-center gap-3 bg-terminal-panel border border-terminal-cyan/30 rounded-lg shadow-[0_0_20px_rgba(var(--terminal-cyan),0.1)]">
+                            <div className="relative w-10 h-10">
+                                <div className="absolute inset-0 border-2 border-terminal-cyan/20 rounded-full" />
+                                <div className="absolute inset-0 border-2 border-transparent border-t-terminal-cyan rounded-full animate-spin" />
+                            </div>
+                            <div className="text-xs font-mono text-terminal-cyan font-bold tracking-wider animate-pulse">
+                                SCANNING REGISTRY...
+                            </div>
+                            <div className="w-full bg-terminal-surface rounded-full h-1 overflow-hidden">
+                                <div className="h-full bg-terminal-cyan/60 rounded-full animate-[loading_1.5s_ease-in-out_infinite]" style={{ width: '60%', animation: 'loading 1.5s ease-in-out infinite' }} />
+                            </div>
+                        </div>
                     )}
 
                     {results.length > 0 && !selectedChar && (
@@ -109,7 +135,16 @@ export default function VisualizerPage() {
                 {/* Visualizer Panel */}
                 <div className="lg:col-span-3">
                     {loading && selectedChar && (
-                        <div className="h-96 flex items-center justify-center text-terminal-muted font-mono animate-pulse">Decoding character data...</div>
+                        <div className="h-96 flex flex-col items-center justify-center gap-4">
+                            <div className="relative w-12 h-12">
+                                <div className="absolute inset-0 border-2 border-terminal-cyan/20 rounded-full" />
+                                <div className="absolute inset-0 border-2 border-transparent border-t-terminal-cyan rounded-full animate-spin" />
+                                <div className="absolute inset-2 border-2 border-transparent border-b-terminal-cyan/60 rounded-full animate-spin" style={{ animationDirection: 'reverse', animationDuration: '0.8s' }} />
+                            </div>
+                            <div className="text-sm font-mono text-terminal-cyan font-bold tracking-wider animate-pulse">
+                                DECODING CHARACTER DATA...
+                            </div>
+                        </div>
                     )}
 
                     {selectedChar && !loading && (
