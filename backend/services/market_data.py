@@ -363,7 +363,7 @@ class MarketDataService:
     async def fetch_character_detail(self, token_id: str) -> Optional[CharacterListing]:
         """Fetch full character detail with AP stats and equipment.
         Uses MSU Open API (primary) with marketplace fallback."""
-        cache_key = f"char_detail_v13:{token_id}"
+        cache_key = f"char_detail_v14:{token_id}"
         cached = await cache_get(cache_key)
         if cached:
             return CharacterListing(**cached)
@@ -397,7 +397,6 @@ class MarketDataService:
                     item_asset_keys = list(set(item_asset_keys))
 
                     # Enrich items via Open API /items/{assetKey} (rate limit: 10 req/s)
-                    import time
                     rich_items: dict[str, dict] = {}
                     if item_asset_keys:
                         print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} items for {token_id}...")
@@ -408,7 +407,7 @@ class MarketDataService:
                                     rich_items[ak] = item_data
                                 # Pace to stay under 10 req/s rate limit
                                 if i < len(item_asset_keys) - 1:
-                                    time.sleep(0.12)
+                                    await asyncio.sleep(0.12)
                             except Exception:
                                 pass
                         print(f"[Navigator+OpenAPI] Enriched {len(rich_items)}/{len(item_asset_keys)} items")
