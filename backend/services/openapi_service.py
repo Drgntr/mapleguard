@@ -320,20 +320,36 @@ class OpenAPIService:
 
     @staticmethod
     def _derive_cp(ap_stat: dict, raw_char: dict) -> int:
-        """Derive approximate CP from available stats when real combatPower is absent."""
+        """Derive CP from available stats when combatPower field is absent.
+
+        First tries apStat.attackPower which IS the real Combat Power (전투력)
+        in the MSU API. Falls back to formula-based derivation with proper
+        primary/secondary stat detection.
+        """
+        # attackPower IS the combat power — use directly if available
+        cp_raw = ap_stat.get("attackPower")
+        if cp_raw:
+            try:
+                cp = int(cp_raw)
+                if cp > 0:
+                    return cp
+            except (ValueError, TypeError):
+                pass
+
+        # Fallback: derive from formula with proper stat detection
         from services.combat_power_engine import CombatPowerEngine
         from services.combat_power_engine import _get_stat_total as _gst
 
+        job_name = raw_char.get("common", {}).get("job", {}).get("jobName", "")
+        p_key, s_key = CombatPowerEngine.detect_primary_secondary(job_name, ap_stat)
+
         cp = CombatPowerEngine.calculate_cp(
-            primary_stat=_gst(ap_stat, "str"),
-            secondary_stat=_gst(ap_stat, "dex"),
-            total_att=max(_gst(ap_stat, "pad"), _gst(ap_stat, "attackPower"), _gst(ap_stat, "mad")),
-            att_percent=0.0,
+            primary_stat=_gst(ap_stat, p_key),
+            secondary_stat=_gst(ap_stat, s_key),
+            total_att=max(_gst(ap_stat, "pad"), _gst(ap_stat, "mad")),
             damage_pct=_gst(ap_stat, "damage"),
-            boss_damage_pct=_gst(ap_stat, "boss_monster_damage"),
-            final_damage_pct=_gst(ap_stat, "final_damage"),
-            crit_damage_pct=_gst(ap_stat, "critical_damage"),
-            crit_damage_base=0.0,  # We don't have base separately
+            boss_damage_pct=_gst(ap_stat, "bossMonsterDamage", "boss_monster_damage"),
+            crit_damage_pct=_gst(ap_stat, "criticalDamage", "critical_damage"),
         )
         return int(cp) if cp > 0 else 0
 

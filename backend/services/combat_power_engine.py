@@ -2,17 +2,23 @@
 Combat Power (CP) Calculation Engine for MapleStory Universe (N).
 
 Methodology:
-  CP formula (from NamuWiki / StrategyWiki / OrangeMushroom KMST 1.2.162):
+  CP formula (adapted from KMS formula for MSU):
 
     CP = Stat × ATT × Damage × CDM
 
     Stat   = (4 × Primary + Secondary) / 100
     ATT    = Bow-standardized Attack Power (raw ATT for bow-equivalent weapons)
     Damage = 1 + (Damage% + BossDamage%) / 100
-    CDM    = 1.35 + equipCritDmg% / 100   (1.35 = hidden base crit constant)
+    CDM    = CP_CDM_BASE + equipCritDmg% / 100
+
+  MSU uses CP_CDM_BASE = 0.70 (verified against real API data).
+  KMS uses 1.35 as the hidden base crit constant, but MSU differs.
 
   NOT in CP: Final Damage%, Weapon Multiplier, IED%, skill/link bonuses.
   ATT is standardized to bow-equivalent; weapon multiplier is NOT used.
+
+  IMPORTANT: The MSU API field `apStat.attackPower` is the REAL Combat Power
+  (전투력), NOT the physical attack stat. Physical ATT is in `apStat.pad`.
 
   Per-item contributions use marginal (log-derivative) decomposition against
   the 4 multiplicative factors above, scaled to the real API CP value.
@@ -30,6 +36,13 @@ from __future__ import annotations
 import math
 import re as _re
 from typing import Dict, List, Optional, Tuple
+
+# ─── MSU CP Formula Constants ─────────────────────────────────────────────────
+# Base Critical Damage multiplier for CP calculation.
+# MSU (MapleStory Universe / N) uses 0.70, verified against real API data
+# (e.g. Wind Archer Lv80: DEX=528, STR=57, PAD=125, real CP=1897 → CDM=0.70).
+# KMS uses 1.35 but MSU is a different game with a different formula constant.
+CP_CDM_BASE: float = 0.70
 
 # ─── Class → Primary / Secondary Stat Mapping ─────────────────────────────────
 # Maps MSU job names to (primary_stat_key, secondary_stat_key)
@@ -517,23 +530,23 @@ class CombatPowerEngine:
 
     @staticmethod
     def calc_crit_damage_mult(crit_damage_pct: float, crit_damage_base: float = 0) -> float:
-        """Critical Damage multiplier for CP: 1.35 + equipCD% / 100.
+        """Critical Damage multiplier for CP: CP_CDM_BASE + equipCD% / 100.
 
-        The base critical damage in MapleStory is 1.35 (35% bonus on crit).
-        This base is a hidden constant NOT reported by the API.
+        MSU uses CP_CDM_BASE = 0.70 (verified against real API data).
+        KMS uses 1.35 but MSU is a different game.
 
         API behavior:
-          - If criticalDamage.base >= 30 → total already includes the 35% base,
+          - If criticalDamage.base >= 30 → total already includes the base,
             so equipCD = total - base.
           - If criticalDamage.base < 30  → total is equipment-only,
             so equipCD = total.
-        Either way: CDM = 1.35 + equipCD / 100.
+        Either way: CDM = CP_CDM_BASE + equipCD / 100.
         """
         if crit_damage_base >= 30:
             equip_cd = crit_damage_pct - crit_damage_base
         else:
             equip_cd = crit_damage_pct
-        return 1.35 + equip_cd / 100.0
+        return CP_CDM_BASE + equip_cd / 100.0
 
     @classmethod
     def calculate_cp(
@@ -553,7 +566,7 @@ class CombatPowerEngine:
         **kwargs,
     ) -> float:
         """
-        MapleStory Combat Power (전투력) calculation.
+        MSU Combat Power (전투력) calculation.
 
         CP = Stat × StdATT × Damage × CDM
 
@@ -561,12 +574,10 @@ class CombatPowerEngine:
           Stat   = (4 × Primary + Secondary) / 100
           StdATT = Bow-standardized ATT (for bow-equivalent weapons, = raw ATT)
           Damage = 1 + (Damage% + BossDmg%) / 100
-          CDM    = 1.35 + equipCD% / 100
+          CDM    = CP_CDM_BASE + equipCD% / 100  (MSU: 0.70)
 
         NOT included: Final Damage%, Weapon Multiplier, IED%.
         ATT is standardized to bow-equivalent (no weapon mult needed).
-
-        Source: NamuWiki, StrategyWiki, OrangeMushroom (KMST 1.2.162).
         """
         stat = cls.calc_stat_component(primary_stat, secondary_stat)
 
@@ -759,7 +770,7 @@ class CombatPowerEngine:
             1. Stat Component  = (4 × Primary + Secondary) / 100  — includes %STAT
             2. ATT             = total_att (pad.total)             — includes %ATT
             3. Damage%         = 1 + (DMG% + BossDMG%) / 100
-            4. Crit Damage%    = 1.35 + equipCD% / 100  (1.35 = hidden base)
+            4. Crit Damage%    = CP_CDM_BASE + equipCD% / 100  (MSU: 0.70)
         NOT in CP: Final Damage%, Weapon Multiplier, IED%.
         """
         breakdown = []
@@ -842,11 +853,11 @@ class CombatPowerEngine:
             })
 
         # ── Factor 4: Critical Damage % ──
-        # CDM = 1.35 + equipCD/100. Denominator for marginal = 135 + equipCD.
+        # CDM = CP_CDM_BASE + equipCD/100. Denominator for marginal = CP_CDM_BASE*100 + equipCD.
         char_cd = char_stats.get("crit_damage_pct", 0)
         char_cd_base = char_stats.get("crit_damage_base", 0)
         equip_cd = char_cd - char_cd_base if char_cd_base >= 30 else char_cd
-        cd_denom = 135.0 + equip_cd  # from CDM = 1.35 + equip_cd/100
+        cd_denom = CP_CDM_BASE * 100.0 + equip_cd  # from CDM = CP_CDM_BASE + equip_cd/100
         item_cd = item_stats.get("crit_damage_pct", 0)
         if cd_denom > 135.0 and item_cd > 0:
             pct = item_cd / cd_denom * 100.0
@@ -932,9 +943,9 @@ class CombatPowerEngine:
         if old_dmg_factor > 0 and new_dmg != old_dmg:
             pct_change += (new_dmg_factor - old_dmg_factor) / old_dmg_factor
 
-        # Factor 4: CDM = 1.35 + cd/100 → denominator = 135 + cd
-        old_cd_factor = 135.0 + old_cd
-        new_cd_factor = 135.0 + new_cd
+        # Factor 4: CDM = CP_CDM_BASE + cd/100 → denominator = CP_CDM_BASE*100 + cd
+        old_cd_factor = CP_CDM_BASE * 100.0 + old_cd
+        new_cd_factor = CP_CDM_BASE * 100.0 + new_cd
         if old_cd_factor > 0 and new_cd != old_cd:
             pct_change += (new_cd_factor - old_cd_factor) / old_cd_factor
 
@@ -1126,8 +1137,19 @@ class CombatPowerEngine:
         """
         char_stats = cls.extract_stats_from_character(ap_stats, job_name)
 
+        # Auto-detect real_cp from attackPower if not provided
+        # MSU API: apStat.attackPower IS the Combat Power (전투력), not ATT
+        if real_cp <= 0 and isinstance(ap_stats, dict):
+            ap_cp_raw = ap_stats.get("attackPower")
+            if ap_cp_raw:
+                try:
+                    real_cp = int(ap_cp_raw)
+                except (ValueError, TypeError):
+                    pass
+
         # Pull PAD/MAD from apStat directly (most accurate source)
-        ap_pad = _get_stat_total(ap_stats, "pad") or _get_stat_total(ap_stats, "attackPower")
+        # NOTE: attackPower in MSU API is Combat Power (전투력), NOT physical ATT
+        ap_pad = _get_stat_total(ap_stats, "pad")
         ap_mad = _get_stat_total(ap_stats, "mad")
         # Use the higher of PAD/MAD (mages use MAD)
         if ap_pad > 0 and char_stats.get("total_att", 0) == 0:
@@ -1136,8 +1158,8 @@ class CombatPowerEngine:
             char_stats["total_att"] = ap_mad
 
         # ── Back-calculate ATT from combat_power when pad/mad unavailable ────
-        # CP = (4P+S)/100 × ATT × (1+(Dmg+Boss)/100) × (1.35+CD/100)
-        # ATT = CP / [(4P+S)/100 × (1+(Dmg+Boss)/100) × (1.35+CD/100)]
+        # CP = (4P+S)/100 × ATT × (1+(Dmg+Boss)/100) × (CP_CDM_BASE+CD/100)
+        # ATT = CP / [(4P+S)/100 × (1+(Dmg+Boss)/100) × (CP_CDM_BASE+CD/100)]
         cd_base = _get_stat_base(ap_stats, "critical_damage", "criticalDamage")
         if char_stats.get("total_att", 0) == 0 and real_cp > 0:
             stat_comp = cls.calc_stat_component(
@@ -1236,11 +1258,14 @@ class CombatPowerEngine:
                 char_stats[k] = v
 
         # Calculate CP using the correct formula
+        # NOTE: att_percent=0 because pad.total from the API already includes
+        # all %ATT bonuses baked in. Applying att_percent again would double-count.
+        # The bootstrapped att_percent is still in char_stats for marginal decomposition.
         total_calc_cp = cls.calculate_cp(
             primary_stat=char_stats["primary_stat"],
             secondary_stat=char_stats["secondary_stat"],
             total_att=char_stats.get("total_att", 0),
-            att_percent=char_stats.get("att_percent", 0),
+            att_percent=0.0,
             damage_pct=char_stats.get("damage_pct", 0),
             boss_damage_pct=char_stats.get("boss_damage_pct", 0),
             crit_damage_pct=char_stats.get("crit_damage_pct", 0),

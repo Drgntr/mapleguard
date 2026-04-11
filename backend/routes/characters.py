@@ -302,7 +302,7 @@ async def character_detail(token_id: str):
             elif isinstance(cp_stat, (int, float)):
                 real_cp = int(cp_stat)
 
-            # Fallback: attackPower is sometimes a plain string in the raw apStat
+            # MSU API: apStat.attackPower IS the Combat Power (전투력), not ATT
             if real_cp == 0:
                 attack_power_raw = ap_stats.get("attackPower") or ap_stats.get("attack_power")
                 if attack_power_raw:

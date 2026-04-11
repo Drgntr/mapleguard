@@ -62,7 +62,7 @@ class ApStats(BaseModel):
             luk=_stat("luk"),
             hp=_stat("hp"),
             mp=_stat("mp"),
-            pad=_stat("pad", "physicalAttack", "attackPower"),
+            pad=_stat("pad", "physicalAttack"),
             mad=_stat("mad", "magicalAttack", "magicAttack"),
             damage=_stat("damage"),
             boss_monster_damage=_stat("bossMonsterDamage", "boss_monster_damage"),

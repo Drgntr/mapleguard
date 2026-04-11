@@ -97,17 +97,31 @@ async def save_snapshot(char_data: dict, token_id: str, minter: str):
     try:
         from services.combat_power_engine import CombatPowerEngine, _get_stat_total
         ap = char_data.get("apStat", {}) or character.get("apStat", {})
-        cp_val = CombatPowerEngine.calculate_cp(
-            primary_stat=_get_stat_total(ap, "str"),
-            secondary_stat=_get_stat_total(ap, "dex"),
-            total_att=max(_get_stat_total(ap, "pad"), _get_stat_total(ap, "attackPower"), _get_stat_total(ap, "mad")),
-            damage_pct=_get_stat_total(ap, "damage"),
-            boss_damage_pct=_get_stat_total(ap, "boss_monster_damage"),
-            final_damage_pct=_get_stat_total(ap, "final_damage"),
-            crit_damage_pct=_get_stat_total(ap, "critical_damage"),
-            crit_damage_base=0.0,
-        )
-        combat_power = int(cp_val) if cp_val > 0 else 0
+
+        # attackPower IS the real Combat Power (전투력) in MSU API
+        ap_cp_raw = ap.get("attackPower") if isinstance(ap, dict) else None
+        if ap_cp_raw:
+            try:
+                combat_power = int(ap_cp_raw)
+            except (ValueError, TypeError):
+                pass
+
+        # Fallback: derive from formula with proper stat detection
+        if combat_power <= 0:
+            job_name = char_data.get("common", {}).get("job", {}).get("jobName", "")
+            p_key, s_key = CombatPowerEngine.detect_primary_secondary(job_name, ap)
+            cp_val = CombatPowerEngine.calculate_cp(
+                primary_stat=_get_stat_total(ap, p_key),
+                secondary_stat=_get_stat_total(ap, s_key),
+                total_att=max(_get_stat_total(ap, "pad"), _get_stat_total(ap, "mad")),
+                damage_pct=_get_stat_total(ap, "damage"),
+                boss_damage_pct=_get_stat_total(ap, "bossMonsterDamage", "boss_monster_damage"),
+                final_damage_pct=_get_stat_total(ap, "finalDamage", "final_damage"),
+                crit_damage_pct=_get_stat_total(ap, "criticalDamage", "critical_damage"),
+                crit_damage_base=0.0,
+            )
+            combat_power = int(cp_val) if cp_val > 0 else 0
+
         char_att = _get_stat_total(ap, "pad")
         char_matt = _get_stat_total(ap, "mad")
     except Exception as e:
