@@ -61,7 +61,8 @@ export default function CalculatorPage() {
             const res = await fetch(`/api/characters/search?query=${encodeURIComponent(charQuery)}`);
             const data = await res.json();
             if (data.results?.length === 1) {
-                handleSelectChar(data.results[0].token_id);
+                await handleSelectChar(data.results[0].token_id);
+                return;
             } else {
                 setCharResults(data.results || []);
             }

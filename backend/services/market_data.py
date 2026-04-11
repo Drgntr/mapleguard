@@ -407,17 +407,41 @@ class MarketDataService:
     # ─── Character Search (Marketplace scan) ────────────────────────────
 
     async def search_navigator_characters(self, keyword: str) -> list[dict]:
-        """Search characters — scans marketplace explore listings by name."""
+        """Search characters globally via Navigator search API."""
         results = []
         seen: set[str] = set()
-        kw_lower = keyword.lower()
 
-        # Scan marketplace explore pages for matching character names
+        # 1. Navigator search API — finds ALL characters (not just marketplace)
         try:
-            for page_no in range(1, 4):
+            nav_url = f"https://msu.io/navigator/api/navigator/search?keyword={keyword}&limit=20"
+            data = self._get(nav_url, CHAR_HEADERS)
+            for record in data.get("records", []):
+                if record.get("type") != "character":
+                    continue
+                char_info = record.get("character", {})
+                asset_key = char_info.get("assetKey", "")
+                name = char_info.get("characterName", "")
+                job = char_info.get("job", {})
+                if asset_key and asset_key not in seen:
+                    seen.add(asset_key)
+                    results.append({
+                        "token_id": asset_key,
+                        "name": name,
+                        "level": char_info.get("level", 0),
+                        "class_name": job.get("className", ""),
+                        "job_name": job.get("jobName", ""),
+                        "image_url": record.get("imageUrl"),
+                    })
+        except Exception as e:
+            print(f"[search] Navigator search error: {e}")
+
+        # 2. Fallback: scan marketplace explore listings
+        if not results:
+            kw_lower = keyword.lower()
+            try:
                 body = {
                     "filter": {"class": "all_classes", "price": {"min": 0, "max": 10_000_000_000}, "level": {"min": 0, "max": 300}},
-                    "paginationParam": {"pageNo": page_no, "pageSize": 135},
+                    "paginationParam": {"pageNo": 1, "pageSize": 135},
                 }
                 data = self._post(f"{settings.MSU_API_BASE}/marketplace/explore/characters", body, CHAR_HEADERS)
                 for r in data.get("characters", []):
@@ -437,10 +461,8 @@ class MarketDataService:
                                 "job_name": job.get("jobName", ""),
                                 "image_url": r.get("imageUrl"),
                             })
-                if data.get("paginationResult", {}).get("isLastPage"):
-                    break
-        except Exception as e:
-            print(f"[search] Explore scan error: {e}")
+            except Exception as e:
+                print(f"[search] Marketplace fallback error: {e}")
 
         return results
 
