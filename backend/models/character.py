@@ -224,7 +224,10 @@ class CharacterListing(BaseModel):
     @staticmethod
     def _find_grade(obj):
         if not obj: return 0
-        deep_grade = obj.get("enhance", {}).get("potential", {}).get("option1", {}).get("grade")
+        enhance = obj.get("enhance") or {}
+        pot = enhance.get("potential") or {}
+        opt1 = pot.get("option1") or {}
+        deep_grade = opt1.get("grade")
         if deep_grade:
             return deep_grade
         for k in ["potentialGrade", "potential_grade", "potential", "grade"]:
@@ -239,7 +242,7 @@ class CharacterListing(BaseModel):
     @staticmethod
     def _get_sf_deep(obj):
         if not obj: return 0
-        return obj.get("enhance", {}).get("starforce", {}).get("enhanced") or 0
+        return ((obj.get("enhance") or {}).get("starforce") or {}).get("enhanced") or 0
 
     @staticmethod
     def from_detail_api(data: dict) -> "CharacterListing":
@@ -270,22 +273,23 @@ class CharacterListing(BaseModel):
                 # In the new minimal API shape, slot_data IS the item object directly
                 item_obj = slot_data.get("item") or slot_data.get("data") or slot_data
 
+                enhance = item_obj.get("enhance") or {}
                 ei = EquippedItem(
                     slot=slot_name,
                     item_type=item_type,
-                    item_id=item_obj.get("itemId", 0) or item_obj.get("common", {}).get("itemId", 0),
+                    item_id=item_obj.get("itemId", 0) or (item_obj.get("common") or {}).get("itemId", 0),
                     name=CharacterListing._get_name(item_obj),
                     token_id=item_obj.get("tokenId") or item_obj.get("assetKey"),
                     mintable=bool(item_obj.get("mintable") or item_obj.get("isMinted")),
                     potential_grade=CharacterListing._find_grade(item_obj),
-                    starforce=(item_obj.get("enhance", {}).get("starforce", {}).get("enhanced")
+                    starforce=((enhance.get("starforce") or {}).get("enhanced")
                                or item_obj.get("starforce", 0)),
                     potential=CharacterListing._parse_pot(
-                        item_obj.get("enhance", {}).get("potential")
+                        enhance.get("potential")
                         or item_obj.get("potential")
                     ),
                     bonus_potential=CharacterListing._parse_pot(
-                        item_obj.get("enhance", {}).get("bonusPotential")
+                        enhance.get("bonusPotential")
                         or item_obj.get("bonusPotential")
                     ),
                     stats=item_obj.get("stats"),

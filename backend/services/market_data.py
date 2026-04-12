@@ -101,20 +101,34 @@ class MarketDataService:
         r.raise_for_status()
         return r.json()
 
-    def _get_openapi(self, path: str, params: dict = None) -> Optional[dict]:
+    def _get_openapi(self, path: str, params: dict = None, retries: int = 2) -> Optional[dict]:
         """GET from MSU Open API. Returns data payload or None on error.
-        Path should be relative, e.g. '/characters/by-token-id/123'."""
-        try:
-            r = self._openapi_client.get(path, params=params)
-            r.raise_for_status()
-            body = r.json()
-            if body.get("success"):
-                return body.get("data")
-            print(f"[OpenAPI] Error in {path}: {body.get('error', {}).get('message', 'unknown')}")
-            return None
-        except Exception as e:
-            print(f"[OpenAPI] Request failed for {path}: {e}")
-            return None
+        Path should be relative, e.g. '/characters/by-token-id/123'.
+        Retries on 429 with exponential backoff."""
+        import time as _time
+        for attempt in range(retries + 1):
+            try:
+                r = self._openapi_client.get(path, params=params)
+                if r.status_code == 429 and attempt < retries:
+                    wait = 1.0 * (attempt + 1)
+                    _time.sleep(wait)
+                    continue
+                r.raise_for_status()
+                body = r.json()
+                if body.get("success"):
+                    return body.get("data")
+                print(f"[OpenAPI] Error in {path}: {body.get('error', {}).get('message', 'unknown')}")
+                return None
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < retries:
+                    _time.sleep(1.0 * (attempt + 1))
+                    continue
+                print(f"[OpenAPI] Request failed for {path}: {e}")
+                return None
+            except Exception as e:
+                print(f"[OpenAPI] Request failed for {path}: {e}")
+                return None
+        return None
 
     def _get_openapi_sync(self, path: str) -> Optional[dict]:
         """Synchronous Open API call (for use in non-async contexts like calculator)."""
@@ -412,12 +426,12 @@ class MarketDataService:
                     if item_asset_keys:
                         print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} items...")
                         for i, ak in enumerate(item_asset_keys):
+                            if i > 0:
+                                await asyncio.sleep(0.15)
                             try:
                                 item_data = self._get_openapi(f"/items/{ak}")
                                 if item_data:
                                     rich_items[ak] = item_data
-                                if i < len(item_asset_keys) - 1:
-                                    await asyncio.sleep(0.12)
                             except Exception:
                                 pass
                         print(f"[Navigator+OpenAPI] Enriched {len(rich_items)}/{len(item_asset_keys)} items")
@@ -442,16 +456,16 @@ class MarketDataService:
                                     slot_data["itemName"] = name
 
                     reshaped = {
-                        "tokenId": char_node.get("tokenInfo", {}).get("tokenId", ""),
-                        "assetKey": char_node.get("assetKey", token_id),
-                        "name": char_node.get("name", ""),
-                        "imageUrl": char_node.get("imageUrl", ""),
+                        "tokenId": (char_node.get("tokenInfo") or {}).get("tokenId", ""),
+                        "assetKey": char_node.get("assetKey") or token_id,
+                        "name": char_node.get("name") or "",
+                        "imageUrl": char_node.get("imageUrl") or "",
                         "character": {
-                            "common": char_node.get("common", {}),
-                            "apStat": char_node.get("apStat", {}),
+                            "common": char_node.get("common") or {},
+                            "apStat": char_node.get("apStat") or {},
                             "wearing": wearing,
-                            "hyperStat": char_node.get("hyperStat", {}),
-                            "ability": char_node.get("ability", {}),
+                            "hyperStat": char_node.get("hyperStat") or {},
+                            "ability": char_node.get("ability") or {},
                         },
                     }
                     char = CharacterListing.from_detail_api(reshaped)
@@ -596,15 +610,17 @@ class MarketDataService:
         asset_keys = list(set(asset_keys))
 
         # 3. Enrich minted items via Open API /items/{assetKey}
+        # Rate limit: 10 req/s — pace at 0.15s between calls
         rich_items: dict[str, dict] = {}
         if asset_keys:
             print(f"[OpenAPI] Enriching {len(asset_keys)} items for {identifier}...")
             for i, ak in enumerate(asset_keys):
+                if i > 0:
+                    await asyncio.sleep(0.15)
                 item_data = self._get_openapi(f"/items/{ak}")
                 if item_data:
-                    rich_items[ak] = item_data  # {"item": {...}} — matches expected format
-                    if i < 2:
-                        print(f"  [Enrich] OK: {ak[:20]}")
+                    rich_items[ak] = item_data
+            print(f"[OpenAPI] Enriched {len(rich_items)}/{len(asset_keys)} items")
 
         # 4. Parse using from_openapi + enrich with item data
         from models.character import CharacterListing
