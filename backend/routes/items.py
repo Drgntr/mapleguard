@@ -11,16 +11,15 @@ settings = get_settings()
 router = APIRouter(prefix="/api/items", tags=["Items"])
 
 # Category numbers for equipment slot types (from MSU marketplace)
+# These are exact 10-digit categoryNo values from the explore API
 SLOT_CATEGORIES: dict[str, list[int]] = {
-    "weapon":    [1000101, 1000102],  # One-handed + Two-handed weapons
-    "secondary": [1000103],           # Secondary weapons
     "hat":       [1000201001],
     "top":       [1000201002, 1000201003],  # Top + Outfit
     "bottom":    [1000201004],
     "shoes":     [1000201005],
     "gloves":    [1000201006],
     "cape":      [1000201007],
-    "shoulder":  [1000201008],
+    "shoulder":  [1000202007],
     "face":      [1000202001],
     "eye":       [1000202002],
     "earring":   [1000202003],
@@ -31,6 +30,10 @@ SLOT_CATEGORIES: dict[str, list[int]] = {
     "badge":     [1000202009],
     "emblem":    [1000202010],
 }
+
+# Weapon categories use prefixes — we match any item starting with these
+WEAPON_PREFIXES: list[int] = [1000101, 1000102]  # One-handed + Two-handed
+SECONDARY_PREFIXES: list[int] = [1000103]         # Secondary weapons
 
 
 @router.get("/upgrades")
@@ -45,9 +48,10 @@ async def upgrade_suggestions(
     items with higher starforce or potential grade than currently equipped."""
     slot_key = slot.lower().replace(" ", "_")
     cats = SLOT_CATEGORIES.get(slot_key)
-    if not cats:
+    prefixes = WEAPON_PREFIXES if slot_key == "weapon" else (SECONDARY_PREFIXES if slot_key == "secondary" else [])
+    if not cats and not prefixes:
         return {"items": [], "slot": slot, "error": f"Unknown slot: {slot}",
-                "available_slots": list(SLOT_CATEGORIES.keys())}
+                "available_slots": list(SLOT_CATEGORIES.keys()) + ["weapon", "secondary"]}
 
     cache_key = f"upgrades:v2:{slot_key}:{current_sf}:{current_grade}:{limit}"
     cached = await cache_get(cache_key)
@@ -58,11 +62,15 @@ async def upgrade_suggestions(
     all_market = await market_data_service.fetch_all_items(max_pages=3)
 
     # Filter to matching categories
-    cat_set = set(cats)
-    slot_items = [
-        item for item in all_market
-        if item.category_no in cat_set
-    ]
+    cat_set = set(cats or [])
+    slot_items = []
+    for item in all_market:
+        if item.category_no in cat_set:
+            slot_items.append(item)
+        elif prefixes:
+            cat_prefix = item.category_no // 1000  # Drop last 3 digits
+            if cat_prefix in prefixes:
+                slot_items.append(item)
 
     upgrades = []
     for item in slot_items:
