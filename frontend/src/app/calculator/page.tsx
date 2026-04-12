@@ -5,6 +5,7 @@ import { useItems } from "@/hooks/useMarketData";
 import EquipmentGrid from "@/components/EquipmentGrid";
 import HyperStatsGrid from "@/components/HyperStatsGrid";
 import UpgradeVectors from "@/components/UpgradeVectors";
+import UpgradeSuggestions from "@/components/UpgradeSuggestions";
 import ItemTooltipContent from "@/components/ItemTooltipContent";
 
 const POTENTIAL_LABELS: Record<number, [string, string]> = {
@@ -394,74 +395,83 @@ export default function CalculatorPage() {
                                 </div>
                                 <div className="pt-8 pb-14 px-14 flex-1 w-full flex items-start justify-center gap-14 overflow-visible relative z-10">
                                     {activeTab === "Equipment" ? (
-                                        <>
-                                            {/* LEFT: Gear Grid */}
-                                            <div className="flex-none">
-                                                <EquipmentGrid
-                                                    equippedItems={selectedChar?.equipped_items || []}
-                                                    onSelect={handleSelectItem}
-                                                    selectedId={selectedItem?.token_id}
-                                                />
+                                        <div className="flex flex-col w-full">
+                                            <div className="flex items-start justify-center gap-14 overflow-visible">
+                                                {/* LEFT: Gear Grid */}
+                                                <div className="flex-none">
+                                                    <EquipmentGrid
+                                                        equippedItems={selectedChar?.equipped_items || []}
+                                                        onSelect={handleSelectItem}
+                                                        selectedId={selectedItem?.token_id}
+                                                    />
+                                                </div>
+
+                                                {/* RIGHT: Status Monitor */}
+                                                {selectedChar && (
+                                                    <div className="w-[300px] flex flex-col gap-5 animate-in fade-in slide-in-from-right-8 duration-700">
+
+                                                        {/* CP Console */}
+                                                        <div className="bg-black/80 border-2 border-terminal-accent/20 rounded-2xl p-6 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
+                                                            <div className="absolute top-0 right-0 w-32 h-32 bg-terminal-accent/5 rounded-full blur-3xl group-hover:bg-terminal-accent/15 transition-colors" />
+                                                            <div className="text-[9px] font-black text-terminal-accent uppercase tracking-[0.4em] mb-3">AGGREGATE COMBAT RATING</div>
+                                                            <div className="text-4xl font-black text-white font-mono tracking-tighter drop-shadow-[0_0_20px_rgba(var(--terminal-accent),0.4)]">
+                                                                {(selectedChar.char_cp || selectedChar.ap_stats?.combat_power?.total || 0).toLocaleString()}
+                                                            </div>
+                                                            <div className="mt-5 h-1.5 bg-white/5 rounded-full overflow-hidden">
+                                                                <div className="h-full bg-terminal-accent w-5/6 shadow-[0_0_15px_rgba(var(--terminal-accent),0.6)]" />
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Primary Stats Cluster */}
+                                                        <div className="grid grid-cols-2 gap-2">
+                                                            {[
+                                                                { key: 'str', label: 'STR' },
+                                                                { key: 'dex', label: 'DEX' },
+                                                                { key: 'int', label: 'INT' },
+                                                                { key: 'luk', label: 'LUK' },
+                                                            ].map(s => {
+                                                                const val = selectedChar.ap_stats?.[`${s.key}_stat`]?.total || selectedChar.ap_stats?.[s.key]?.total || 0;
+                                                                return (
+                                                                    <div key={s.label} className="bg-white/[0.02] border border-white/5 rounded-xl px-4 py-3 flex flex-col group hover:border-terminal-accent/20 transition-all hover:bg-white/[0.04]">
+                                                                        <span className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1">{s.label}</span>
+                                                                        <span className="text-sm font-black text-white font-mono leading-none group-hover:text-terminal-accent transition-colors">{val.toLocaleString()}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        {/* Attack Power Cluster */}
+                                                        <div className="grid grid-cols-1 gap-2">
+                                                            {[
+                                                                { label: 'ATTACK POWER', val: selectedChar.char_att || selectedChar.ap_stats?.pad?.total || selectedChar.ap_stats?.physicalAttack?.total || 0 },
+                                                                { label: 'MAGIC ATTACK', val: selectedChar.char_matt || selectedChar.ap_stats?.mad?.total || selectedChar.ap_stats?.magicalAttack?.total || 0 },
+                                                            ].map(s => (
+                                                                <div key={s.label} className="bg-terminal-accent/[0.02] border border-terminal-accent/10 rounded-xl px-5 py-4 flex items-center justify-between group hover:border-terminal-accent/30 transition-all">
+                                                                    <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">{s.label}</span>
+                                                                    <span className="text-lg font-black text-terminal-accent font-mono leading-none drop-shadow-[0_0_8px_rgba(var(--terminal-accent),0.3)]">{s.val.toLocaleString()}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+
+                                                        {/* System Status Footer */}
+                                                        <div className="mt-auto px-1 flex items-center justify-between text-[8px] font-black text-white/10 uppercase tracking-widest">
+                                                            <span>Protocol v4.3.0</span>
+                                                            <div className="flex gap-1.5">
+                                                                <div className="w-1 h-1 bg-terminal-accent animate-pulse rounded-full" />
+                                                                <span>Sync Active</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* RIGHT: Status Monitor */}
+                                            {/* BELOW: Marketplace Upgrade Suggestions */}
                                             {selectedChar && (
-                                                <div className="w-[300px] flex flex-col gap-5 animate-in fade-in slide-in-from-right-8 duration-700">
-
-                                                    {/* CP Console */}
-                                                    <div className="bg-black/80 border-2 border-terminal-accent/20 rounded-2xl p-6 backdrop-blur-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden group">
-                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-terminal-accent/5 rounded-full blur-3xl group-hover:bg-terminal-accent/15 transition-colors" />
-                                                        <div className="text-[9px] font-black text-terminal-accent uppercase tracking-[0.4em] mb-3">AGGREGATE COMBAT RATING</div>
-                                                        <div className="text-4xl font-black text-white font-mono tracking-tighter drop-shadow-[0_0_20px_rgba(var(--terminal-accent),0.4)]">
-                                                            {(selectedChar.char_cp || selectedChar.ap_stats?.combat_power?.total || 0).toLocaleString()}
-                                                        </div>
-                                                        <div className="mt-5 h-1.5 bg-white/5 rounded-full overflow-hidden">
-                                                            <div className="h-full bg-terminal-accent w-5/6 shadow-[0_0_15px_rgba(var(--terminal-accent),0.6)]" />
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Primary Stats Cluster */}
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        {[
-                                                            { key: 'str', label: 'STR' },
-                                                            { key: 'dex', label: 'DEX' },
-                                                            { key: 'int', label: 'INT' },
-                                                            { key: 'luk', label: 'LUK' },
-                                                        ].map(s => {
-                                                            const val = selectedChar.ap_stats?.[`${s.key}_stat`]?.total || selectedChar.ap_stats?.[s.key]?.total || 0;
-                                                            return (
-                                                                <div key={s.label} className="bg-white/[0.02] border border-white/5 rounded-xl px-4 py-3 flex flex-col group hover:border-terminal-accent/20 transition-all hover:bg-white/[0.04]">
-                                                                    <span className="text-[8px] font-black text-white/20 uppercase tracking-widest mb-1">{s.label}</span>
-                                                                    <span className="text-sm font-black text-white font-mono leading-none group-hover:text-terminal-accent transition-colors">{val.toLocaleString()}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-
-                                                    {/* Attack Power Cluster */}
-                                                    <div className="grid grid-cols-1 gap-2">
-                                                        {[
-                                                            { label: 'ATTACK POWER', val: selectedChar.char_att || selectedChar.ap_stats?.pad?.total || selectedChar.ap_stats?.physicalAttack?.total || 0 },
-                                                            { label: 'MAGIC ATTACK', val: selectedChar.char_matt || selectedChar.ap_stats?.mad?.total || selectedChar.ap_stats?.magicalAttack?.total || 0 },
-                                                        ].map(s => (
-                                                            <div key={s.label} className="bg-terminal-accent/[0.02] border border-terminal-accent/10 rounded-xl px-5 py-4 flex items-center justify-between group hover:border-terminal-accent/30 transition-all">
-                                                                <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.2em]">{s.label}</span>
-                                                                <span className="text-lg font-black text-terminal-accent font-mono leading-none drop-shadow-[0_0_8px_rgba(var(--terminal-accent),0.3)]">{s.val.toLocaleString()}</span>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-
-                                                    {/* System Status Footer */}
-                                                    <div className="mt-auto px-1 flex items-center justify-between text-[8px] font-black text-white/10 uppercase tracking-widest">
-                                                        <span>Protocol v4.3.0</span>
-                                                        <div className="flex gap-1.5">
-                                                            <div className="w-1 h-1 bg-terminal-accent animate-pulse rounded-full" />
-                                                            <span>Sync Active</span>
-                                                        </div>
-                                                    </div>
+                                                <div className="mt-6 px-4">
+                                                    <UpgradeSuggestions equippedItems={selectedChar.equipped_items || []} />
                                                 </div>
                                             )}
-                                        </>
+                                        </div>
                                     ) : activeTab === "Legion & Collection" ? (
                                         <div className="w-full max-w-3xl space-y-8">
                                             {/* Legion Section */}

@@ -10,6 +10,84 @@ from config import get_settings
 settings = get_settings()
 router = APIRouter(prefix="/api/items", tags=["Items"])
 
+# Category numbers for equipment slot types (from MSU marketplace)
+SLOT_CATEGORIES: dict[str, list[int]] = {
+    "weapon":    [1000101, 1000102],  # One-handed + Two-handed weapons
+    "secondary": [1000103],           # Secondary weapons
+    "hat":       [1000201001],
+    "top":       [1000201002, 1000201003],  # Top + Outfit
+    "bottom":    [1000201004],
+    "shoes":     [1000201005],
+    "gloves":    [1000201006],
+    "cape":      [1000201007],
+    "shoulder":  [1000201008],
+    "face":      [1000202001],
+    "eye":       [1000202002],
+    "earring":   [1000202003],
+    "ring":      [1000202004],
+    "pendant":   [1000202005],
+    "belt":      [1000202006],
+    "pocket":    [1000202008],
+    "badge":     [1000202009],
+    "emblem":    [1000202010],
+}
+
+
+@router.get("/upgrades")
+async def upgrade_suggestions(
+    slot: str = Query(..., description="Equipment slot type (weapon, hat, etc.)"),
+    current_sf: int = Query(0, ge=0, description="Current equipped item starforce"),
+    current_grade: int = Query(0, ge=0, description="Current equipped item potential grade (0-4)"),
+    limit: int = Query(20, ge=1, le=50),
+):
+    """Find marketplace items that could be upgrades for a given slot.
+    Fetches items from marketplace, filters by slot category, and returns
+    items with higher starforce or potential grade than currently equipped."""
+    slot_key = slot.lower().replace(" ", "_")
+    cats = SLOT_CATEGORIES.get(slot_key)
+    if not cats:
+        return {"items": [], "slot": slot, "error": f"Unknown slot: {slot}",
+                "available_slots": list(SLOT_CATEGORIES.keys())}
+
+    cache_key = f"upgrades:v2:{slot_key}:{current_sf}:{current_grade}:{limit}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+
+    # Fetch marketplace items (API doesn't support category filter, so filter client-side)
+    all_market = await market_data_service.fetch_all_items(max_pages=3)
+
+    # Filter to matching categories
+    cat_set = set(cats)
+    slot_items = [
+        item for item in all_market
+        if item.category_no in cat_set
+    ]
+
+    upgrades = []
+    for item in slot_items:
+        sf_gain = item.starforce - current_sf
+        grade_gain = item.potential_grade - current_grade
+        bpot_gain = item.bonus_potential_grade
+        if sf_gain > 0 or grade_gain > 0:
+            score = sf_gain * 10 + grade_gain * 50 + bpot_gain * 20
+            d = item.model_dump()
+            d["sf_gain"] = sf_gain
+            d["grade_gain"] = grade_gain
+            d["upgrade_score"] = score
+            upgrades.append(d)
+
+    upgrades.sort(key=lambda x: x["upgrade_score"], reverse=True)
+    result = {
+        "items": upgrades[:limit],
+        "slot": slot_key,
+        "current_sf": current_sf,
+        "current_grade": current_grade,
+        "total_found": len(upgrades),
+    }
+    await cache_set(cache_key, result, ttl=settings.CACHE_TTL_SECONDS)
+    return result
+
 
 @router.get("/catalog")
 async def get_catalog(query: str = Query("")):
