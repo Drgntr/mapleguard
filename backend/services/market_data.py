@@ -101,27 +101,27 @@ class MarketDataService:
         r.raise_for_status()
         return r.json()
 
-    def _get_openapi(self, path: str, params: dict = None, retries: int = 2) -> Optional[dict]:
+    def _get_openapi(self, path: str, params: dict = None, retries: int = 1) -> Optional[dict]:
         """GET from MSU Open API. Returns data payload or None on error.
         Path should be relative, e.g. '/characters/by-token-id/123'.
-        Retries on 429 with exponential backoff."""
+        Retries once on 429 with a short backoff."""
         import time as _time
         for attempt in range(retries + 1):
             try:
                 r = self._openapi_client.get(path, params=params)
-                if r.status_code == 429 and attempt < retries:
-                    wait = 1.0 * (attempt + 1)
-                    _time.sleep(wait)
-                    continue
+                if r.status_code == 429:
+                    if attempt < retries:
+                        _time.sleep(1.5)
+                        continue
+                    return None  # Silently skip on persistent rate limit
                 r.raise_for_status()
                 body = r.json()
                 if body.get("success"):
                     return body.get("data")
-                print(f"[OpenAPI] Error in {path}: {body.get('error', {}).get('message', 'unknown')}")
                 return None
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429 and attempt < retries:
-                    _time.sleep(1.0 * (attempt + 1))
+                    _time.sleep(1.5)
                     continue
                 print(f"[OpenAPI] Request failed for {path}: {e}")
                 return None
@@ -402,38 +402,41 @@ class MarketDataService:
                 if char_node:
                     wearing = char_node.get("wearing", {})
 
-                    # Collect ITEM asset keys for enrichment
+                    # Collect equip slot asset keys only (skip cash/pet for speed)
                     item_asset_keys: list[str] = []
-                    def _walk_nav(d):
-                        if not isinstance(d, dict):
-                            return
-                        ak = d.get("assetKey")
-                        if ak and isinstance(ak, str) and ak.upper().startswith("ITEM"):
-                            item_asset_keys.append(ak)
-                            return
-                        for v in d.values():
-                            if isinstance(v, dict):
-                                _walk_nav(v)
-                            elif isinstance(v, list):
-                                for it in v:
-                                    if isinstance(it, dict):
-                                        _walk_nav(it)
-                    _walk_nav(wearing)
+                    equip_slots = wearing.get("equip", {})
+                    if isinstance(equip_slots, dict):
+                        for slot_data in equip_slots.values():
+                            if isinstance(slot_data, dict):
+                                ak = slot_data.get("assetKey")
+                                if ak and isinstance(ak, str) and ak.upper().startswith("ITEM"):
+                                    item_asset_keys.append(ak)
                     item_asset_keys = list(set(item_asset_keys))
 
-                    # Enrich items via Open API (rate limit: 10 req/s)
+                    # Enrich items in batches (rate limit: 10 req/s)
+                    # Bail out early if rate limited
                     rich_items: dict[str, dict] = {}
                     if item_asset_keys:
-                        print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} items...")
-                        for i, ak in enumerate(item_asset_keys):
-                            if i > 0:
-                                await asyncio.sleep(0.15)
-                            try:
-                                item_data = self._get_openapi(f"/items/{ak}")
-                                if item_data:
-                                    rich_items[ak] = item_data
-                            except Exception:
-                                pass
+                        batch_size = 5
+                        consecutive_fails = 0
+                        print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} equip items...")
+                        for batch_start in range(0, len(item_asset_keys), batch_size):
+                            if consecutive_fails >= batch_size:
+                                print(f"[Navigator+OpenAPI] Rate limited, stopping early")
+                                break
+                            if batch_start > 0:
+                                await asyncio.sleep(0.6)
+                            batch = item_asset_keys[batch_start:batch_start + batch_size]
+                            for ak in batch:
+                                try:
+                                    item_data = self._get_openapi(f"/items/{ak}")
+                                    if item_data:
+                                        rich_items[ak] = item_data
+                                        consecutive_fails = 0
+                                    else:
+                                        consecutive_fails += 1
+                                except Exception:
+                                    consecutive_fails += 1
                         print(f"[Navigator+OpenAPI] Enriched {len(rich_items)}/{len(item_asset_keys)} items")
 
                     # Merge enriched data into wearing slots
@@ -588,38 +591,40 @@ class MarketDataService:
 
         raw_char = data["character"]
 
-        # 2. Extract asset keys for equipped items that need enrichment
+        # 2. Extract asset keys for equip items only (skip cash/pet to stay within timeout)
         wearing = raw_char.get("wearing", {})
         asset_keys: list[str] = []
-
-        def _walk(d):
-            if not isinstance(d, dict):
-                return
-            ak = d.get("assetKey")
-            if ak and isinstance(ak, str) and ak.upper().startswith("ITEM"):
-                asset_keys.append(ak)
-                return
-            for v in d.values():
-                if isinstance(v, dict):
-                    _walk(v)
-                elif isinstance(v, list):
-                    for item in v:
-                        if isinstance(item, dict):
-                            _walk(item)
-        _walk(wearing)
+        equip_slots = wearing.get("equip", {})
+        if isinstance(equip_slots, dict):
+            for slot_data in equip_slots.values():
+                if isinstance(slot_data, dict):
+                    ak = slot_data.get("assetKey")
+                    if ak and isinstance(ak, str) and ak.upper().startswith("ITEM"):
+                        asset_keys.append(ak)
         asset_keys = list(set(asset_keys))
 
-        # 3. Enrich minted items via Open API /items/{assetKey}
-        # Rate limit: 10 req/s — pace at 0.15s between calls
+        # 3. Enrich items via Open API /items/{assetKey}
+        # Process in batches of 5 with 0.6s delay between batches (~8 req/s)
+        # Bail out early if first batch fails (rate limited)
         rich_items: dict[str, dict] = {}
         if asset_keys:
-            print(f"[OpenAPI] Enriching {len(asset_keys)} items for {identifier}...")
-            for i, ak in enumerate(asset_keys):
-                if i > 0:
-                    await asyncio.sleep(0.15)
-                item_data = self._get_openapi(f"/items/{ak}")
-                if item_data:
-                    rich_items[ak] = item_data
+            batch_size = 5
+            consecutive_fails = 0
+            print(f"[OpenAPI] Enriching {len(asset_keys)} equip items for {identifier}...")
+            for batch_start in range(0, len(asset_keys), batch_size):
+                if consecutive_fails >= batch_size:
+                    print(f"[OpenAPI] Rate limited, stopping enrichment early")
+                    break
+                if batch_start > 0:
+                    await asyncio.sleep(0.6)
+                batch = asset_keys[batch_start:batch_start + batch_size]
+                for ak in batch:
+                    item_data = self._get_openapi(f"/items/{ak}")
+                    if item_data:
+                        rich_items[ak] = item_data
+                        consecutive_fails = 0
+                    else:
+                        consecutive_fails += 1
             print(f"[OpenAPI] Enriched {len(rich_items)}/{len(asset_keys)} items")
 
         # 4. Parse using from_openapi + enrich with item data
