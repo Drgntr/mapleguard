@@ -488,29 +488,23 @@ class MarketDataService:
                                     item_asset_keys.append(ak)
                     item_asset_keys = list(set(item_asset_keys))
 
-                    # Enrich items in batches with fallback system
+                    # Enrich items in batches (rate limit: 10 req/s)
                     # Bail out early if rate limited
                     rich_items: dict[str, dict] = {}
                     if item_asset_keys:
                         batch_size = 5
                         consecutive_fails = 0
-                        print(f"[Navigator+Fallback] Enriching {len(item_asset_keys)} equip items...")
+                        print(f"[Navigator+OpenAPI] Enriching {len(item_asset_keys)} equip items...")
                         for batch_start in range(0, len(item_asset_keys), batch_size):
                             if consecutive_fails >= batch_size:
-                                print(f"[Navigator+Fallback] Rate limited, stopping early")
+                                print(f"[Navigator+OpenAPI] Rate limited, stopping early")
                                 break
                             if batch_start > 0:
                                 await asyncio.sleep(0.6)
                             batch = item_asset_keys[batch_start:batch_start + batch_size]
                             for ak in batch:
                                 try:
-                                    # Try fallback hierarchy: OpenAPI -> Navigator -> Explorer
-                                    item_data = self._fetch_with_fallback(
-                                        openapi_path=f"/items/{ak}",
-                                        navigator_path=f"/items/{ak}",
-                                        explorer_path="info",
-                                        explorer_body={"assetKey": ak}
-                                    )
+                                    item_data = self._get_openapi(f"/items/{ak}")
                                     if item_data:
                                         rich_items[ak] = item_data
                                         consecutive_fails = 0
@@ -518,7 +512,7 @@ class MarketDataService:
                                         consecutive_fails += 1
                                 except Exception:
                                     consecutive_fails += 1
-                        print(f"[Navigator+Fallback] Enriched {len(rich_items)}/{len(item_asset_keys)} items")
+                        print(f"[Navigator+OpenAPI] Enriched {len(rich_items)}/{len(item_asset_keys)} items")
 
                     # Merge enriched data into wearing slots
                     for equip_type in ("equip", "cashEquip", "pet"):
@@ -684,35 +678,29 @@ class MarketDataService:
                         asset_keys.append(ak)
         asset_keys = list(set(asset_keys))
 
-        # 3. Enrich items via fallback system: OpenAPI -> Navigator -> Explorer
+        # 3. Enrich items via Open API /items/{assetKey}
         # Process in batches of 5 with 0.6s delay between batches (~8 req/s)
         # Bail out early if first batch fails (rate limited)
         rich_items: dict[str, dict] = {}
         if asset_keys:
             batch_size = 5
             consecutive_fails = 0
-            print(f"[OpenAPI+Fallback] Enriching {len(asset_keys)} equip items for {identifier}...")
+            print(f"[OpenAPI] Enriching {len(asset_keys)} equip items for {identifier}...")
             for batch_start in range(0, len(asset_keys), batch_size):
                 if consecutive_fails >= batch_size:
-                    print(f"[OpenAPI+Fallback] Rate limited, stopping enrichment early")
+                    print(f"[OpenAPI] Rate limited, stopping enrichment early")
                     break
                 if batch_start > 0:
                     await asyncio.sleep(0.6)
                 batch = asset_keys[batch_start:batch_start + batch_size]
                 for ak in batch:
-                    # Try fallback hierarchy: OpenAPI -> Navigator -> Explorer
-                    item_data = self._fetch_with_fallback(
-                        openapi_path=f"/items/{ak}",
-                        navigator_path=f"/items/{ak}",
-                        explorer_path="info",
-                        explorer_body={"assetKey": ak}
-                    )
+                    item_data = self._get_openapi(f"/items/{ak}")
                     if item_data:
                         rich_items[ak] = item_data
                         consecutive_fails = 0
                     else:
                         consecutive_fails += 1
-            print(f"[OpenAPI+Fallback] Enriched {len(rich_items)}/{len(asset_keys)} items")
+            print(f"[OpenAPI] Enriched {len(rich_items)}/{len(asset_keys)} items")
 
         # 4. Parse using from_openapi + enrich with item data
         from models.character import CharacterListing
