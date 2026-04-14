@@ -678,7 +678,7 @@ class CombatPowerEngine:
             "secondary_stat": secondary_val,
             "primary_key": primary_key,
             "secondary_key": secondary_key,
-            "total_att": _get_stat_total(ap_stats, "attack", "pad", "mad", "physicalAttack", "magicalAttack", "attackAndMagicAttack"),
+            "total_att": _get_stat_total(ap_stats, "att", "attack", "pad", "mad", "physicalAttack", "magicalAttack", "magicAtt", "attackAndMagicAttack"),
             "att_percent": 0.0,  # %ATT is embedded in the total; we account via equipment aggregation
             "damage_pct": _get_stat_total(ap_stats, "damage", "damageRate"),
             "boss_damage_pct": _get_stat_total(ap_stats, "boss_monster_damage", "bossMonsterDamage", "bossDamage"),
@@ -1137,20 +1137,29 @@ class CombatPowerEngine:
         """
         char_stats = cls.extract_stats_from_character(ap_stats, job_name)
 
-        # Auto-detect real_cp from attackPower if not provided
-        # MSU API: apStat.attackPower IS the Combat Power (전투력), not ATT
+        # Auto-detect real_cp from attackPower/combatPower/combat_power if not provided
+        # MSU API: apStat.attackPower (Navigator) / combatPower (OpenAPI) / combat_power IS the CP (전투력)
         if real_cp <= 0 and isinstance(ap_stats, dict):
-            ap_cp_raw = ap_stats.get("attackPower")
+            # Try multiple field names and handle both dict and scalar values
+            for cp_key in ("combatPower", "combat_power", "attackPower"):
+                ap_cp_raw = ap_stats.get(cp_key)
+                if ap_cp_raw:
+                    break
+            if ap_cp_raw is None:
+                ap_cp_raw = ap_stats.get("attackPower") or ap_stats.get("combatPower") or ap_stats.get("combat_power")
             if ap_cp_raw:
                 try:
-                    real_cp = int(ap_cp_raw)
+                    if isinstance(ap_cp_raw, dict):
+                        real_cp = int(ap_cp_raw.get("total", 0))
+                    else:
+                        real_cp = int(float(ap_cp_raw))
                 except (ValueError, TypeError):
                     pass
 
         # Pull PAD/MAD from apStat directly (most accurate source)
-        # NOTE: attackPower in MSU API is Combat Power (전투력), NOT physical ATT
-        ap_pad = _get_stat_total(ap_stats, "pad")
-        ap_mad = _get_stat_total(ap_stats, "mad")
+        # NOTE: OpenAPI uses "att" and "magicAtt"; Navigator uses "pad" and "mad"
+        ap_pad = _get_stat_total(ap_stats, "att", "pad", "physicalAttack")
+        ap_mad = _get_stat_total(ap_stats, "magicAtt", "mad", "magicalAttack")
         # Use the higher of PAD/MAD (mages use MAD)
         if ap_pad > 0 and char_stats.get("total_att", 0) == 0:
             char_stats["total_att"] = max(ap_pad, ap_mad)
