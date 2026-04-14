@@ -332,7 +332,7 @@ async def character_detail(token_id: str):
                 if slot_key:
                     slot_to_cp[slot_key] = cp_val
 
-            total_cp = analysis.get("real_cp", 0)
+            total_cp = analysis.get("calculated_cp", 0)
             char_dict["char_cp"] = total_cp
             char_dict["char_att"] = analysis.get("total_att", 0)
             char_dict["char_matt"] = analysis.get("total_matt", 0)
