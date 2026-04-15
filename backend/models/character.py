@@ -76,7 +76,7 @@ class ApStats(BaseModel):
             speed=_stat("speed"),
             jump=_stat("jump"),
             knockback_resistance=_stat("knockbackResistance", "knockback_resistance"),
-            combat_power=_stat("combatPower", "combat_power"),
+            combat_power=_stat("combatPower", "combat_power", "attackPower"),
         )
 
 
